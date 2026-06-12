@@ -1,0 +1,123 @@
+#!/bin/sh
+
+set -eu
+
+REPO_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+cd "$REPO_ROOT"
+
+DISPLAY_NAME=${0##*/}
+LOCAL_PROJECT_NAME=${CFO_LOCAL_PROJECT_NAME:-cfo-local}
+PROD_PROJECT_NAME=${CFO_PROD_PROJECT_NAME:-cfo-prod}
+PROD_DATA_VOLUME=${CFO_POSTGRES_VOLUME:-cfo_postgres_data}
+# The public URL is host-specific (your tailnet's MagicDNS name). Set
+# CFO_PUBLIC_URL in the environment or in .env — only this one key is read;
+# the Compose .env is never sourced as shell.
+PUBLIC_URL=${CFO_PUBLIC_URL:-$([ -f .env ] && sed -n 's/^CFO_PUBLIC_URL=//p' .env | head -n 1)}
+
+usage() {
+  cat <<EOF
+Usage:
+  ./$DISPLAY_NAME local init          # dev db only (run \`npm run dev\` on the host)
+  ./$DISPLAY_NAME local reset         # tear the dev db down, including its volume
+  ./$DISPLAY_NAME prod init           # first boot on the tailnet host
+  ./$DISPLAY_NAME prod deploy         # git pull -> migrate -> rebuild & recreate
+  ./$DISPLAY_NAME prod seed           # one-shot seed from scripts/seed.local.ts (mounted; real data, never committed)
+  ./$DISPLAY_NAME status [local|prod]
+  ./$DISPLAY_NAME logs <local|prod> [service]
+  ./$DISPLAY_NAME ready               # curl https://cfo.<tailnet>/api/ready
+EOF
+}
+
+info() { printf 'info: %s\n' "$*"; }
+die() { printf 'error: %s\n' "$*" >&2; exit 1; }
+run() { "$@"; }
+
+compose_local() {
+  run env COMPOSE_PROJECT_NAME="$LOCAL_PROJECT_NAME" docker compose "$@"
+}
+
+compose_prod() {
+  run env COMPOSE_PROJECT_NAME="$PROD_PROJECT_NAME" \
+    docker compose -f docker-compose.server.yml "$@"
+}
+
+ensure_prod_data_volume() {
+  # The ledger lives here. External so `compose down -v` can never drop it.
+  run docker volume create "$PROD_DATA_VOLUME" >/dev/null
+}
+
+run_prod_deploy_path() {
+  ensure_prod_data_volume
+  info "Booting database"
+  compose_prod up -d --build --wait --remove-orphans db
+  info "Applying database migrations"
+  compose_prod build app_setup
+  compose_prod run --rm app_setup
+  info "Building and recreating the app + Tailscale node + daily cron"
+  compose_prod up -d --build --force-recreate --remove-orphans --wait tailscale app cron
+  info "Ready at ${PUBLIC_URL:-<set CFO_PUBLIC_URL in .env>}"
+}
+
+prod_deploy() {
+  run git pull --ff-only
+  run_prod_deploy_path
+}
+
+run_prod_seed() {
+  # The real-data file is mounted from the host (see docker-compose.server.yml),
+  # so it must exist here and is never committed. seed.ts WIPES then reloads.
+  [ -f scripts/seed.local.ts ] \
+    || die "scripts/seed.local.ts not found on the host — create it first (real data, never committed)"
+  ensure_prod_data_volume
+  info "Booting database"
+  compose_prod up -d --wait db
+  info "Seeding from scripts/seed.local.ts — this WIPES and reloads (back up first if unsure)"
+  compose_prod run --rm --build seed
+}
+
+case "${1-}" in
+  local)
+    case "${2-}" in
+      init) compose_local up -d --wait ;;
+      reset) compose_local down -v --remove-orphans ;;
+      *) usage; exit 1 ;;
+    esac
+    ;;
+  prod)
+    case "${2-}" in
+      init) run_prod_deploy_path ;;
+      deploy) prod_deploy ;;
+      seed) run_prod_seed ;;
+      *) usage; exit 1 ;;
+    esac
+    ;;
+  status)
+    case "${2:-prod}" in
+      local) compose_local ps ;;
+      prod) compose_prod ps ;;
+      *) die "Unknown status target: ${2-}" ;;
+    esac
+    ;;
+  logs)
+    target=${2-}
+    service=${3-}
+    [ -n "$target" ] || die "Missing logs target"
+    case "$target" in
+      local) [ -n "$service" ] && compose_local logs -f "$service" || compose_local logs -f ;;
+      prod) [ -n "$service" ] && compose_prod logs -f "$service" || compose_prod logs -f ;;
+      *) die "Unknown logs target: $target" ;;
+    esac
+    ;;
+  ready)
+    [ -n "$PUBLIC_URL" ] || die "set CFO_PUBLIC_URL in .env (e.g. https://cfo.<tailnet>.ts.net)"
+    curl -fsS "$PUBLIC_URL/api/ready"
+    printf '\n'
+    ;;
+  help|-h|--help|"")
+    usage
+    ;;
+  *)
+    usage
+    exit 1
+    ;;
+esac

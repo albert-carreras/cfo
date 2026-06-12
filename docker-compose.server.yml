@@ -1,0 +1,150 @@
+# cfo production stack on the tailnet host.
+#   - tailscale: gives cfo its own node -> https://cfo.<tailnet>.ts.net (auto-TLS)
+#   - app: shares the tailscale netns, reachable ONLY over Tailscale (no host port)
+#   - app_setup: runs drizzle migrations once, then exits
+#   - db: postgres on an external volume so the deploy lifecycle can never drop it
+# Driven by ./stack (prod init | prod deploy). Copy .env.server.example -> .env first.
+
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  tailscale:
+    image: tailscale/tailscale:latest
+    hostname: cfo
+    logging: *default-logging
+    restart: unless-stopped
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY}
+      TS_HOSTNAME: cfo
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_USERSPACE: "true"
+      TS_SERVE_CONFIG: /config/serve.json
+    volumes:
+      - tailscale_state:/var/lib/tailscale
+      - ./infra/tailscale/serve.json:/config/serve.json:ro
+
+  app:
+    logging: *default-logging
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: prod
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: "production"
+      NEXT_TELEMETRY_DISABLED: "1"
+    # Share the Tailscale node's network: the app is published only via
+    # `tailscale serve` -> http://127.0.0.1:3222, never on a host port.
+    network_mode: service:tailscale
+    depends_on:
+      tailscale:
+        condition: service_started
+      db:
+        condition: service_healthy
+      app_setup:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3222/api/ready').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # Daily price/FX update: busybox crond hits the app's cron route once a day
+  # (see infra/cron/crontab). Shares the tailscale netns like the app, so the
+  # route stays unreachable from anywhere but the tailnet.
+  cron:
+    image: alpine:3.21
+    logging: *default-logging
+    restart: unless-stopped
+    # Bind-mounted files retain the host UID. BusyBox rejects root's crontab
+    # unless root owns it, so install a root-owned copy before starting crond.
+    # Log to stderr so scheduled runs and parse errors reach Docker logs.
+    command:
+      - sh
+      - -c
+      - |
+        cp /config/crontab /etc/crontabs/root
+        chmod 600 /etc/crontabs/root
+        exec crond -f -d 8
+    network_mode: service:tailscale
+    volumes:
+      - ./infra/cron/crontab:/config/crontab:ro
+    depends_on:
+      app:
+        condition: service_healthy
+
+  app_setup:
+    logging: *default-logging
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: jobs
+    command: npm run db:migrate
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: "production"
+      NEXT_TELEMETRY_DISABLED: "1"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  # One-shot manual seed — never auto-started (run via `./stack prod seed`). The
+  # real-data file is MOUNTED from the host, never baked into the image or
+  # committed to git, so you edit scripts/seed.local.ts on the box and re-run
+  # without a rebuild. seed.ts is idempotent: it WIPES then reloads.
+  seed:
+    profiles: ["seed"]
+    logging: *default-logging
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: jobs
+    command: npm run seed
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: "production"
+      NEXT_TELEMETRY_DISABLED: "1"
+    volumes:
+      - ./scripts/seed.local.ts:/app/scripts/seed.local.ts:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  db:
+    logging: *default-logging
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  tailscale_state:
+  postgres_data:
+    external: true
+    name: ${CFO_POSTGRES_VOLUME:-cfo_postgres_data}

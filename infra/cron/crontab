@@ -1,0 +1,14 @@
+# Daily internal update: prices + FX -> internal snapshot -> monthly/material
+# strategic promotion. Two runs: 06:15 UTC (after US close — settled previous
+# EU closes) and 07:45 UTC (after Xetra/Euronext open at 07:00 — Yahoo's daily
+# bar rolls to today, so the home's price freshness shows the same day). The
+# route is idempotent; the second run refreshes market_prices and the live
+# home view while the day's internal snapshot stays deduped. The cron
+# container shares the tailscale netns, so 127.0.0.1:3222 is the app itself.
+15 6 * * * wget -qO- http://127.0.0.1:3222/api/cron/daily || echo "cfo daily update failed"
+45 7 * * * wget -qO- http://127.0.0.1:3222/api/cron/daily || echo "cfo daily update failed"
+
+# Monthly review (Phase 5): the scheduled analyst — reassurance digest,
+# regulatory watch, tax-table re-verification. 1st of the month, after that
+# day's daily update has run. Re-hits are no-ops (one review per month).
+45 6 1 * * wget -qO- http://127.0.0.1:3222/api/cron/review || echo "cfo monthly review failed"

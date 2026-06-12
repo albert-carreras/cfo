@@ -1,0 +1,43 @@
+{
+  "name": "cfo",
+  "version": "0.1.0",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --hostname 0.0.0.0 --port 3222",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ci": "npm run lint && npm run typecheck && npm run test",
+    "seed": "tsx scripts/seed.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@paralleldrive/cuid2": "^3.3.0",
+    "decimal.js": "^10.6.0",
+    "drizzle-orm": "^0.45.2",
+    "next": "16.2.6",
+    "postgres": "^3.4.9",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.0",
+    "@types/node": "25.9.0",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "drizzle-kit": "^0.31.10",
+    "eslint": "9.27.0",
+    "eslint-config-next": "16.2.6",
+    "tailwindcss": "4.3.0",
+    "tsx": "4.22.2",
+    "typescript": "6.0.3",
+    "vitest": "4.1.0"
+  }
+}

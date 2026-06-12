@@ -1,0 +1,22 @@
+.env
+.env.local
+.env.*.local
+.DS_Store
+.eslintcache
+*.tsbuildinfo
+*.log
+.vscode
+.idea
+node_modules
+.next
+out
+build
+coverage
+data
+tmp
+npm-debug.log*
+
+# real financial data never enters git; only the synthetic fixture is committed
+scripts/seed.local.ts
+# broker / bank exports (transaction CSVs) are private data, never committed
+*.csv

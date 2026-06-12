@@ -1,0 +1,17 @@
+# Local dev Postgres for CFO. The brain runs on the same box (architecture.md).
+# `docker compose up -d` then `npm run db:migrate && npm run seed`.
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cfo
+      POSTGRES_PASSWORD: cfo
+      POSTGRES_DB: cfo
+    ports:
+      - "5433:5432"
+    volumes:
+      - cfo_pgdata:/var/lib/postgresql/data
+
+volumes:
+  cfo_pgdata:
