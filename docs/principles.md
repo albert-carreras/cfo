@@ -56,7 +56,10 @@ Sometimes the right status is not "danger" — it's *"we don't know enough."* Do
 two.
 
 ## 8. Calm surface, deep brain
-Home shows: status · next strategic snapshot · data freshness. Full net worth, allocation and
+Home shows: status · next strategic snapshot · data freshness. Freshness names both dates the
+strategic **Snapshot** (frozen between monthly / material-change promotions) and the daily
+**Computed** date (the newest internal snapshot, advancing every day the feed runs) so a calm,
+deliberately-stable promotion date never reads as a broken feed. Full net worth, allocation and
 in-depth reports are **one tap away** — never blocked, never shoved at you.
 
 ## 9. "Data stale" is a first-class status

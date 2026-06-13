@@ -161,6 +161,16 @@ export default async function HomePage() {
     .sort()
     .at(-1);
 
+  // "Computed" = when the daily job last recomputed (the newest internal
+  // snapshot). The strategic "Snapshot" date is frozen between monthly /
+  // material-change promotions, so on its own the card looks stale even when
+  // the feed ran today. This date advances every day the cron runs, so the
+  // Freshness card reflects real recency, not just the last promotion.
+  const lastInternal = internalHistory[0] ?? null;
+  const lastComputedDate = lastInternal
+    ? storedSnapshotResult(lastInternal).asOf ?? lastInternal.asOf
+    : null;
+
   return (
     <PageShell>
       <Masthead
@@ -227,10 +237,14 @@ export default async function HomePage() {
               <dd className="mt-1 tabular-nums">{lastStrategicDate ?? "—"}</dd>
             </div>
             <div>
+              <dt className="fine-print">Computed</dt>
+              <dd className="mt-1 tabular-nums">{lastComputedDate ?? "—"}</dd>
+            </div>
+            <div>
               <dt className="fine-print">Prices</dt>
               <dd className="mt-1 tabular-nums">{pricesAsOf ?? "—"}</dd>
             </div>
-            <div className="col-span-2">
+            <div>
               <dt className="fine-print">Data quality</dt>
               <dd className="mt-1">
                 {dq.score}
