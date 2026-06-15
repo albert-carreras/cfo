@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { createId } from "@paralleldrive/cuid2";
-import { renderStatementText } from "@/ai/schema";
-import type { ReviewContext, ReviewReport, StatementLabel } from "@/ai/types";
+import { renderStatementParts } from "@/ai/schema";
+import type {
+  MetricEntry,
+  ReviewContext,
+  ReviewReport,
+  StatementLabel,
+} from "@/ai/types";
 import { computeSnapshot } from "@/calc/snapshot";
 import { confidence, confidenceObservation } from "@/calc/confidence";
 import type { DecisionOutcomesValue } from "@/calc/decisionOutcome";
@@ -39,6 +44,26 @@ const TAG_BY_LABEL: Record<StatementLabel, "Verified" | "Calculated" | "Judgment
   calculated: "Calculated",
   judgment: "Judgment",
 };
+
+function StatementText({
+  text,
+  metrics,
+}: {
+  text: string;
+  metrics: MetricEntry[];
+}) {
+  return (
+    <>
+      {renderStatementParts(text, metrics).map((part, i) =>
+        part.kind === "metric" ? (
+          <Amount key={i}>{part.value}</Amount>
+        ) : (
+          <span key={i}>{part.value}</span>
+        ),
+      )}
+    </>
+  );
+}
 
 // Signed coarse delta — a movement, not a balance.
 function signedEURCoarse(value: string): string {
@@ -159,7 +184,10 @@ function MonthlyReview({ review }: { review: ReviewRow }) {
             <ul className="mt-2 space-y-1">
               {report.decisionsRevisited.map((statement, i) => (
                 <li key={i} className="text-sm italic text-[var(--ink-soft)]">
-                  {renderStatementText(statement.text, context.metrics)}
+                  <StatementText
+                    text={statement.text}
+                    metrics={context.metrics}
+                  />
                   <span className="ml-2 inline-flex align-middle">
                     <Tag kind={TAG_BY_LABEL[statement.label]} />
                   </span>
@@ -184,7 +212,10 @@ function MonthlyReview({ review }: { review: ReviewRow }) {
                     statement.label === "judgment" ? "italic text-[var(--ink-soft)]" : "text-[var(--ink)]"
                   }
                 >
-                  {renderStatementText(statement.text, context.metrics)}
+                  <StatementText
+                    text={statement.text}
+                    metrics={context.metrics}
+                  />
                 </span>
                 <span className="ml-2 inline-flex align-middle">
                   <Tag kind={TAG_BY_LABEL[statement.label]} />
@@ -268,7 +299,10 @@ function MonthlyReview({ review }: { review: ReviewRow }) {
 
           {report.recommendation && review.decisionId && (
             <p className="notice notice-orange mt-3">
-              {renderStatementText(report.recommendation.text, context.metrics)}
+              <StatementText
+                text={report.recommendation.text}
+                metrics={context.metrics}
+              />
               <Tag kind="Judgment" />
               <Link
                 href={`/ask?d=${review.decisionId}`}
