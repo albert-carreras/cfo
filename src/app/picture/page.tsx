@@ -30,6 +30,15 @@ const TAG_BY_LABEL: Record<StatementLabel, "Verified" | "Calculated" | "Judgment
   judgment: "Judgment",
 };
 
+function formatGeneratedAt(date: Date) {
+  return new Intl.DateTimeFormat("en-GB", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    hourCycle: "h23",
+    timeZone: "Europe/Madrid",
+  }).format(date);
+}
+
 // A statement with every metric value (a figure about the user) behind the
 // hidden-amounts toggle — the prose stays readable, the numbers stay calm.
 function StatementText({
@@ -162,9 +171,9 @@ function DeterministicPicture({
 export default async function PicturePage({
   searchParams,
 }: {
-  searchParams: Promise<{ err?: string }>;
+  searchParams: Promise<{ err?: string; refreshed?: string }>;
 }) {
-  const { err } = await searchParams;
+  const { err, refreshed } = await searchParams;
   const row: PictureRow | null = await latestPicture();
 
   // No row yet (nothing promoted since the feature shipped, or a fresh
@@ -216,6 +225,11 @@ export default async function PicturePage({
             snapshot yet?
           </p>
         )}
+        {!err && refreshed && row && (
+          <p className="notice notice-sky mt-4">
+            Picture refreshed · generated {formatGeneratedAt(row.createdAt)}
+          </p>
+        )}
 
         {!summary || !derived ? (
           <Card className="mt-6 p-5 sm:p-6">
@@ -228,6 +242,12 @@ export default async function PicturePage({
           <Card className="mt-6 p-5 sm:p-6">
             <p className="fine-print flex flex-wrap items-center gap-2">
               <span>Computed from the strategic snapshot of {summary.asOf}</span>
+              {row && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span>generated {formatGeneratedAt(row.createdAt)}</span>
+                </>
+              )}
               <span aria-hidden="true">·</span>
               {row ? (
                 row.scope === "full" ? (

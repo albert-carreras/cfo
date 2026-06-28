@@ -12,5 +12,5 @@ export async function refreshPicture() {
   const result = await runPicture({ force: true });
   revalidatePath("/picture");
   if (!result.ok) redirect(`/picture?err=${result.reason}`);
-  redirect("/picture");
+  redirect("/picture?refreshed=1");
 }

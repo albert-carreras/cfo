@@ -24,7 +24,7 @@ export async function latestPicture(
   const [row] = await database
     .select()
     .from(pictures)
-    .orderBy(desc(pictures.createdAt))
+    .orderBy(desc(pictures.createdAt), desc(pictures.id))
     .limit(1);
   return row ?? null;
 }
@@ -37,7 +37,7 @@ export async function pictureForSnapshot(
     .select()
     .from(pictures)
     .where(eq(pictures.snapshotId, snapshotId))
-    .orderBy(desc(pictures.createdAt))
+    .orderBy(desc(pictures.createdAt), desc(pictures.id))
     .limit(1);
   return row ?? null;
 }
