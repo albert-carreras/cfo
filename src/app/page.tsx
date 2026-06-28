@@ -233,11 +233,11 @@ export default async function HomePage() {
           </div>
           <dl className="mt-6 grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
             <div>
-              <dt className="fine-print">Snapshot</dt>
+              <dt className="fine-print">Strategic snapshot</dt>
               <dd className="mt-1 tabular-nums">{lastStrategicDate ?? "—"}</dd>
             </div>
             <div>
-              <dt className="fine-print">Computed</dt>
+              <dt className="fine-print">Daily compute</dt>
               <dd className="mt-1 tabular-nums">{lastComputedDate ?? "—"}</dd>
             </div>
             <div>

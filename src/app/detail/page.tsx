@@ -4,6 +4,7 @@ import { computeSnapshot } from "@/calc/snapshot";
 import { formatEUR, formatEURCoarse, formatYearsCoarse } from "@/calc/money";
 import { loadFacts } from "@/server/facts";
 import {
+  latestSnapshot,
   isReviewDue,
   latestStrategicSnapshot,
   storedSnapshotResult,
@@ -59,9 +60,15 @@ export default async function DetailPage() {
   } = bundle;
   const asOf = new Date().toISOString().slice(0, 10);
 
-  const lastStrategic = await latestStrategicSnapshot();
+  const [lastStrategic, lastInternal] = await Promise.all([
+    latestStrategicSnapshot(),
+    latestSnapshot("internal"),
+  ]);
   const storedStrategic = lastStrategic
     ? storedSnapshotResult(lastStrategic)
+    : null;
+  const lastInternalDate = lastInternal
+    ? storedSnapshotResult(lastInternal).asOf ?? lastInternal.asOf
     : null;
   const reviewDue = isReviewDue(lastStrategic?.computedAt ?? null, asOf);
 
@@ -135,11 +142,17 @@ export default async function DetailPage() {
       <PageShell>
         <PageHeader title="Details" actions={<AmountsToggle />} />
 
-        <div className="eyebrow mb-12 flex flex-col gap-2 border-b border-t-2 border-b-[var(--hairline)] border-t-[var(--ink)] py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="eyebrow mb-12 flex flex-col gap-2 border-b border-t-2 border-b-[var(--hairline)] border-t-[var(--ink)] py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <p>
             Strategic snapshot as of{" "}
             <span className="text-[var(--ink)]">{visibleSnapshot.asOf}</span>
           </p>
+          {lastInternalDate && (
+            <p>
+              Latest daily compute{" "}
+              <span className="text-[var(--ink)]">{lastInternalDate}</span>
+            </p>
+          )}
           <p>
             Data quality:{" "}
             <span className="text-[var(--ink)]">{dq.score}</span>

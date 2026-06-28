@@ -10,7 +10,11 @@ import { picture as pictureCalc, type PictureValue } from "@/calc/picture";
 import type { CalcResult } from "@/calc/types";
 import type { MetricEntry } from "@/ai/types";
 import { latestPicture, type PictureRow } from "@/server/pictures";
-import { latestStrategicSnapshot, storedSnapshotResult } from "@/server/snapshots";
+import {
+  latestSnapshot,
+  latestStrategicSnapshot,
+  storedSnapshotResult,
+} from "@/server/snapshots";
 import { Amount, AmountsProvider, AmountsToggle } from "../amounts";
 import { Card, PageHeader, PageShell, Tag } from "../ui";
 import { refreshPicture } from "./actions";
@@ -175,6 +179,10 @@ export default async function PicturePage({
 }) {
   const { err, refreshed } = await searchParams;
   const row: PictureRow | null = await latestPicture();
+  const latestInternal = await latestSnapshot("internal");
+  const latestInternalDate = latestInternal
+    ? storedSnapshotResult(latestInternal).asOf ?? latestInternal.asOf
+    : null;
 
   // No row yet (nothing promoted since the feature shipped, or a fresh
   // install): compute the floor live from the latest strategic snapshot so the
@@ -242,6 +250,12 @@ export default async function PicturePage({
           <Card className="mt-6 p-5 sm:p-6">
             <p className="fine-print flex flex-wrap items-center gap-2">
               <span>Computed from the strategic snapshot of {summary.asOf}</span>
+              {latestInternalDate && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span>latest daily compute {latestInternalDate}</span>
+                </>
+              )}
               {row && (
                 <>
                   <span aria-hidden="true">·</span>
