@@ -1,8 +1,25 @@
+import type { TaxScale } from "./taxES.es-cat.2026";
+
 // Scenario-engine config — the rough, versioned parameters behind
-// the sell-a-property and sell-position counterfactuals. Versioned like the
-// tax tables: every scenario output carries this version, and a change here is
-// a deliberate, dated bump. The numbers are deliberately ROUGH — each scenario
-// prints its exclusions next to its figures (principle #10).
+// the sell-a-property, sell-position and buy-house counterfactuals. Versioned
+// like the tax tables: every scenario output carries this version, and a
+// change here is a deliberate, dated bump. The numbers are deliberately ROUGH
+// — each scenario prints its exclusions next to its figures (principle #10).
+
+// ITP (impuesto de transmisiones patrimoniales) on a RESALE home purchase in
+// Cataluña — the progressive scale introduced by Decreto-ley 5/2025 (in force
+// 2025-06-27), applied per tramo like IRPF. Reduced rates (young buyers, VPO,
+// familia numerosa, disability) and the 20% large-holder rate are deliberately
+// not modelled; a new build pays IVA 10% + AJD instead. Both stated as
+// exclusions on the buy-house card.
+// Source: https://atc.gencat.cat/es/tributs/itpajd/tpo/tarifes-tipus/
+export const PROPERTY_PURCHASE_ITP_ES_CAT: TaxScale = [
+  { from: 0, to: 600_000, rate: "0.10" },
+  { from: 600_000, to: 900_000, rate: "0.11" },
+  { from: 900_000, to: 1_500_000, rate: "0.12" },
+  { from: 1_500_000, to: null, rate: "0.13" },
+];
+
 export const SCENARIO_ES_2026 = {
   // 2026.2 (2026-06-11): primary-residence CG exemption assumed on the
   // sell-property scenario; a non-positive purchase price now reads as
@@ -27,7 +44,12 @@ export const SCENARIO_ES_2026 = {
   // 2026.7 (2026-06-12): a sell-property with no recorded purchase basis no
   // longer treats the unknown taxes as 0 — proceeds go null (basisIncomplete),
   // the variant recomputes pre-tax, and every Δ is labelled an upper bound.
-  version: "scenario.es.2026.7",
+  // 2026.8 (2026-07-19): the buy-house scenario — ITP at the Cataluña
+  // progressive scale (PROPERTY_PURCHASE_ITP_ES_CAT), a flat purchase-costs
+  // rate, French-amortization mortgage terms (mortgage.v1) raising the
+  // monthlySpend assumption, funding sales with their FIFO CG tax, and an
+  // optional chained sale of an existing property.
+  version: "scenario.es.2026.8",
   // Selling costs on a property sale (agency ~3% + notary/registry/fees),
   // applied to the gross owner-share sale value.
   propertySaleCostsRate: "0.05",
@@ -39,4 +61,8 @@ export const SCENARIO_ES_2026 = {
   // Sell-position spread: how many calendar years the spread variant tranches
   // the sale over (year one sells at asOf, later tranches mid-year).
   positionSpreadYears: 3,
+  // Buy-house: the ITP scale above plus a flat rough rate for the other
+  // purchase costs (notary, registry, gestoría, appraisal) on the price.
+  propertyPurchaseItpScale: PROPERTY_PURCHASE_ITP_ES_CAT,
+  propertyPurchaseCostsRate: "0.015",
 } as const;

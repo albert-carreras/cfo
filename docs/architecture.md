@@ -97,7 +97,9 @@ The concrete provider / model is recorded **only here**, as a build-time choice.
 only); a current frontier model behind a Responses-style API fits. Treat any specific pricing /
 context-window figures as unverified until checked against live provider docs at build time.
 
-**As built (Ask):** **OpenAI `gpt-5.5` via the Responses API** with Structured Outputs.
+**As built (Ask):** **OpenAI `gpt-5.6` via the Responses API** with Structured Outputs and
+function calling (the deterministic Ask tools) — overridable per deployment via the
+`OPENAI_MODEL` env var without a code change.
 The client is one hand-written `fetch` in `src/ai/openai.ts` (no SDK) so the box's single
 egress stays auditable, always sent with `store: false` (the provider must not retain the
 exchange), a 60s abort timeout and a bounded `max_output_tokens`. Everything else in

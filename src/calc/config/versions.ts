@@ -81,6 +81,10 @@ export const VERSIONS = {
   // deterministic half of "keep this flat?". No tunables beyond the two
   // assumptions, so the version lives only here.
   propertyYield: { source: "propertyYield.v1", version: "propertyYield.2026.1" },
+  // French-amortization mortgage terms (2026-07): constant-payment schedule
+  // over caller-supplied principal/rate/term, with the +2pt stress leg
+  // (MORTGAGE_STRESS_RATE_PTS in mortgage.ts — a convention, not a forecast).
+  mortgage: { source: "mortgage.v1", version: "mortgage.2026.1" },
   // The scenario engine (counterfactual diffs over the snapshot; the
   // version mirrors config/scenarios.ts), the concentration classifier and the
   // deterministic recommendation triggers that gate the review's opinions.
@@ -91,7 +95,10 @@ export const VERSIONS = {
   // scenario.es.2026.7 (2026-06-12): a sell-property without a recorded
   // purchase basis goes basisIncomplete — null proceeds, Δ labelled an upper
   // bound; unknown taxes never read as 0.
-  scenario: { source: "scenario.v1", version: "scenario.es.2026.7" },
+  // scenario.es.2026.8 (2026-07-19): the parameterized buy-house scenario
+  // (ITP progressive scale, purchase costs, mortgage terms into the
+  // monthlySpend assumption, funding sales, optional chained property sale).
+  scenario: { source: "scenario.v1", version: "scenario.es.2026.8" },
   concentration: { source: "concentration.v1", version: "concentration.2026.1" },
   // The picture (standing reassurance narrative): the derived ratios the
   // narrative may reference — bucket shares of net worth, spend headroom vs the

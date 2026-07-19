@@ -9,6 +9,9 @@ const serverEnvSchema = z.object({
   // The voice's key — the one egress off the tailnet. Optional:
   // absent ⇒ Ask is unavailable, everything deterministic still runs.
   OPENAI_API_KEY: z.string().min(1).optional(),
+  // Provider model override for every voice surface. Optional: absent ⇒ the
+  // versioned default in src/ai/openai.ts (the current flagship tier).
+  OPENAI_MODEL: z.string().min(1).optional(),
   // ntfy push topic URL (e.g. https://ntfy.sh/<topic>). Optional: absent ⇒
   // notifications are a no-op. Public-topic discipline: coarse payloads only.
   NTFY_URL: z.string().url().optional(),

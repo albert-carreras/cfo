@@ -24,6 +24,14 @@ const IRREVERSIBLE_PATTERNS: RegExp[] = [
   /\bwithdraw\w*\b/i,
   /\brescat\w+/i,
   /\bcash\s+out\b/i,
+  // buy a property / take a mortgage (EN + ES/CA stems) — a purchase of this
+  // size is as irreversible as a sale, and mortgage questions lead there.
+  /\bbuy\w*\b/i,
+  /\bbought\b/i,
+  /\bpurchas\w+/i,
+  /\bcompr\w+/i,
+  /\bmortgage\w*\b/i,
+  /\bhipotec\w+/i,
 ];
 
 export function touchesIrreversibleAction(question: string): boolean {

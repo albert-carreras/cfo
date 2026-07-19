@@ -1,5 +1,5 @@
 import Decimal from "decimal.js";
-import { dec, money, quantity, type Money } from "./money";
+import { dec, formatEURCoarse, money, quantity, type Money } from "./money";
 import type { CalcResult } from "./types";
 import { VERSIONS } from "./config/versions";
 import { SCENARIO_ES_2026 } from "./config/scenarios";
@@ -11,6 +11,7 @@ import {
   realizedCapitalGains,
   type Disposal,
 } from "./taxES";
+import { mortgageTerms, type MortgageValue } from "./mortgage";
 import type { ValuationValue } from "./valuation";
 import type { NetWorthValue } from "./netWorth";
 import type { FireValue } from "./fire";
@@ -86,7 +87,11 @@ export type ScenarioTranche = {
   taxEUR: Money;
 };
 
-export type ScenarioKind = "sell-property" | "sell-position" | "planned-events";
+export type ScenarioKind =
+  | "sell-property"
+  | "sell-position"
+  | "planned-events"
+  | "buy-house";
 
 export type ScenarioValue = {
   key: string; // stable id, e.g. "sell-property:<propertyId>"
@@ -102,6 +107,16 @@ export type ScenarioValue = {
   // exclude the unknown taxes) — surfaced as a badge, never silently as 0 tax.
   basisIncomplete?: boolean;
   breakdown: ScenarioBreakdownRow[];
+  // Buy-house only: the mortgage terms (mortgage.v1) and the funding plan.
+  mortgage?: MortgageValue;
+  fundingSales?: {
+    holdingId: string;
+    grossEUR: Money;
+    gainEUR: Money;
+  }[];
+  // Upfront cash the plan could not cover from liquid cash + funding sales —
+  // rendered as such, never silently absorbed.
+  uncoveredShortfallEUR?: Money;
   // Sell-position only: the at-once vs spread-over-years comparison.
   tranches?: ScenarioTranche[];
   atOnceTaxEUR?: Money;
@@ -240,34 +255,35 @@ function marginalSavingsTax(
 
 // --- Sell a property ---
 
-export function sellPropertyScenario(args: {
+// The sale arithmetic, shared between the sell-property scenario and the
+// buy-house scenario's chained sale: gross owner share, selling costs,
+// mortgage repayment, CG tax (marginal on the savings scale, primary-residence
+// exemption assumed), rough plusvalía, and the basisIncomplete flag when no
+// purchase price is recorded (unknown tax must never read as 0).
+type PropertySaleTerms = {
+  property: SnapshotFacts["properties"][number];
+  mortgages: SnapshotFacts["liabilities"];
+  gross: Decimal;
+  saleCosts: Decimal;
+  mortgageDebt: Decimal;
+  gain: Decimal | null;
+  plusvalia: Decimal | null;
+  cgTax: Decimal | null;
+  oneOffTax: Decimal | null;
+  basisIncomplete: boolean;
+  netProceeds: Decimal;
+};
+
+function propertySaleTerms(args: {
   base: ScenarioBaseSnapshot;
   facts: SnapshotFacts;
-  compute: ComputeVariant;
   propertyId: string;
-  propertyName?: string;
-  toAccountId?: string;
-  // The property's unlevered-yield-vs-ETF line (propertyYield.v1), surfaced
-  // on the card with its own exclusion. Optional — absent when the return/
-  // inflation assumptions are unset.
-  yieldComparison?: PropertyYieldLine | null;
-  config?: typeof SCENARIO_ES_2026;
-  taxConfig?: TaxConfig;
-}): CalcResult<ScenarioValue> | null {
-  const {
-    base,
-    facts,
-    compute,
-    propertyId,
-    propertyName,
-    yieldComparison = null,
-    config = SCENARIO_ES_2026,
-    taxConfig = TAX_ES_CAT_2026,
-  } = args;
-
+  config: typeof SCENARIO_ES_2026;
+  taxConfig: TaxConfig;
+}): PropertySaleTerms | null {
+  const { base, facts, propertyId, config, taxConfig } = args;
   const property = facts.properties.find((p) => p.id === propertyId);
-  const accountId = args.toAccountId ?? targetCashAccount(facts);
-  if (!property || !accountId) return null;
+  if (!property) return null;
 
   const share = dec(property.ownershipPct).dividedBy(100);
   const gross = dec(property.value).times(share);
@@ -307,14 +323,73 @@ export function sellPropertyScenario(args: {
 
   const oneOffTax =
     cgTax === null || plusvalia === null ? null : cgTax.plus(plusvalia);
-  // With no recorded basis the taxes are unknown: the variant recomputes with
-  // the PRE-TAX proceeds and every Δ is labelled an upper bound — unknown tax
-  // must never silently read as 0 tax.
+  // With no recorded basis the taxes are unknown: proceeds run PRE-TAX and the
+  // caller labels every Δ an upper bound — unknown tax never reads as 0 tax.
   const basisIncomplete = oneOffTax === null;
   const netProceeds = gross
     .minus(saleCosts)
     .minus(mortgageDebt)
     .minus(oneOffTax ?? 0);
+
+  return {
+    property,
+    mortgages,
+    gross,
+    saleCosts,
+    mortgageDebt,
+    gain,
+    plusvalia,
+    cgTax,
+    oneOffTax,
+    basisIncomplete,
+    netProceeds,
+  };
+}
+
+export function sellPropertyScenario(args: {
+  base: ScenarioBaseSnapshot;
+  facts: SnapshotFacts;
+  compute: ComputeVariant;
+  propertyId: string;
+  propertyName?: string;
+  toAccountId?: string;
+  // The property's unlevered-yield-vs-ETF line (propertyYield.v1), surfaced
+  // on the card with its own exclusion. Optional — absent when the return/
+  // inflation assumptions are unset.
+  yieldComparison?: PropertyYieldLine | null;
+  config?: typeof SCENARIO_ES_2026;
+  taxConfig?: TaxConfig;
+}): CalcResult<ScenarioValue> | null {
+  const {
+    base,
+    facts,
+    compute,
+    propertyId,
+    propertyName,
+    yieldComparison = null,
+    config = SCENARIO_ES_2026,
+    taxConfig = TAX_ES_CAT_2026,
+  } = args;
+
+  const accountId = args.toAccountId ?? targetCashAccount(facts);
+  const terms = propertySaleTerms({ base, facts, propertyId, config, taxConfig });
+  if (!terms || !accountId) return null;
+  const {
+    property,
+    mortgages,
+    gross,
+    saleCosts,
+    mortgageDebt,
+    cgTax,
+    plusvalia,
+    oneOffTax,
+    basisIncomplete,
+    netProceeds,
+  } = terms;
+  const purchasePrice =
+    property.purchasePrice != null && dec(property.purchasePrice).greaterThan(0)
+      ? property.purchasePrice
+      : null;
 
   const variantFacts: SnapshotFacts = {
     ...facts,
@@ -627,6 +702,359 @@ export function sellPositionScenario(args: {
         "future-year savings income assumed zero outside the tranche",
         "broker fees not modelled; wash-sale deferrals apply as in the tax estimate (recent repurchases defer a loss)",
       ],
+    },
+  });
+}
+
+// --- Buy a house (parameterized — the Ask tool's scenario) ---
+
+export type BuyHouseParams = {
+  priceEUR: Money;
+  // Share of the price paid upfront (e.g. "0.20"); the rest is mortgaged.
+  downPaymentRate: Money;
+  mortgageRateAnnual: Money; // e.g. "0.03"
+  termYears: number;
+  // Sell just enough of these positions (in the given order, each capped at
+  // the full position) to cover the upfront cash need beyond liquid cash.
+  fundFromHoldingIds?: string[];
+  // Chain the sale of an existing property first (a move, not a second home).
+  sellPropertyId?: string;
+  // Monthly rent that disappears on purchase — nets against the payment in
+  // the adjusted monthlySpend assumption.
+  monthlyRentSavedEUR?: Money;
+  isPrimaryResidence?: boolean;
+};
+
+// The composed purchase: ITP at the progressive Cataluña scale + rough other
+// costs, a French-amortization mortgage whose payment raises the monthlySpend
+// assumption (so Δ runway is honest), upfront cash from liquid cash first,
+// then optional funding sales (FIFO CG tax due next year), then an optional
+// chained sale of an existing property. The full snapshot recomputes over the
+// transformed facts; the diff is the advice's number.
+export function buyHouseScenario(args: {
+  base: ScenarioBaseSnapshot;
+  facts: SnapshotFacts;
+  compute: ComputeVariant;
+  params: BuyHouseParams;
+  holdingNameById?: Record<string, string>;
+  propertyNameById?: Record<string, string>;
+  config?: typeof SCENARIO_ES_2026;
+  taxConfig?: TaxConfig;
+}): CalcResult<ScenarioValue> | null {
+  const {
+    base,
+    facts,
+    compute,
+    params,
+    holdingNameById = {},
+    propertyNameById = {},
+    config = SCENARIO_ES_2026,
+    taxConfig = TAX_ES_CAT_2026,
+  } = args;
+
+  const price = dec(params.priceEUR);
+  const accountId = targetCashAccount(facts);
+  if (!accountId || price.lessThanOrEqualTo(0) || params.termYears <= 0)
+    return null;
+  const downRate = Decimal.min(Decimal.max(dec(params.downPaymentRate), 0), 1);
+
+  const itp = progressiveTax(money(price), config.propertyPurchaseItpScale);
+  const otherCosts = price.times(dec(config.propertyPurchaseCostsRate));
+  const downPayment = price.times(downRate);
+  const principal = price.minus(downPayment);
+  const upfront = downPayment.plus(itp).plus(otherCosts);
+
+  const mortgage = mortgageTerms({
+    snapshotId: base.snapshotId,
+    principalEUR: money(principal),
+    rateAnnual: params.mortgageRateAnnual,
+    termYears: params.termYears,
+  });
+  const payment = dec(mortgage.value.monthlyPaymentEUR);
+
+  const inputs: string[] = [accountId];
+  const exclusions: string[] = [
+    "ITP at the Cataluña general progressive scale (Decreto-ley 5/2025) — reduced rates (young buyers, VPO, familia numerosa, disability) and the 20% large-holder rate are not modelled; a NEW BUILD pays IVA 10% + AJD instead",
+    "other purchase costs are a flat rough rate (notary, registry, gestoría, appraisal)",
+    "the mortgage balance stays constant in the snapshot — amortization is not credited back over time; the payment enters through the monthlySpend assumption",
+  ];
+  const breakdown: ScenarioBreakdownRow[] = [
+    { label: "Purchase price", valueEUR: money(price.negated()) },
+    { label: "ITP (progressive scale)", valueEUR: money(itp.negated()) },
+    {
+      label: "Other purchase costs (rough)",
+      valueEUR: money(otherCosts.negated()),
+    },
+    { label: "Mortgage principal (borrowed)", valueEUR: money(principal) },
+    { label: "Upfront cash needed", valueEUR: money(upfront.negated()) },
+    {
+      label: "Monthly mortgage payment",
+      valueEUR: money(payment.negated()),
+    },
+    {
+      label: "Monthly payment at +2pt stress",
+      valueEUR: money(dec(mortgage.value.stress.monthlyPaymentEUR).negated()),
+    },
+  ];
+
+  const movements: DeriveMovement[] = [];
+  let variantProperties = [...facts.properties];
+  let variantLiabilities = [...facts.liabilities];
+
+  // 1. Chained sale of an existing property (all of its sale arithmetic and
+  // exclusions come from the shared sale terms).
+  let chainedTax: Decimal | null = new Decimal(0);
+  let basisIncomplete = false;
+  let chainedProceeds = new Decimal(0);
+  if (params.sellPropertyId) {
+    const sale = propertySaleTerms({
+      base,
+      facts,
+      propertyId: params.sellPropertyId,
+      config,
+      taxConfig,
+    });
+    if (!sale) return null;
+    const soldName =
+      propertyNameById[params.sellPropertyId] ?? "current property";
+    chainedProceeds = sale.netProceeds;
+    chainedTax = sale.oneOffTax;
+    basisIncomplete = sale.basisIncomplete;
+    variantProperties = variantProperties.filter(
+      (p) => p.id !== params.sellPropertyId,
+    );
+    variantLiabilities = variantLiabilities.filter(
+      (l) => l.propertyId !== params.sellPropertyId,
+    );
+    movements.push(
+      cashMovement(
+        `scenario-buy-house-sale-${params.sellPropertyId}`,
+        accountId,
+        sale.netProceeds,
+        base.asOf,
+      ),
+    );
+    inputs.push(params.sellPropertyId, ...sale.mortgages.map((l) => l.id));
+    breakdown.push({
+      label: `Net proceeds — selling ${soldName}`,
+      valueEUR: sale.basisIncomplete ? null : money(sale.netProceeds),
+    });
+    exclusions.push(
+      "the chained sale uses the sell-property model: rough plusvalía, primary-residence CG exemption assumed where it applies",
+    );
+    if (sale.basisIncomplete) {
+      exclusions.unshift(
+        "the chained sale's taxes are unknown (no purchase price recorded) — Δ figures are an upper bound",
+      );
+    }
+  }
+
+  // 2. Funding sales: liquid cash (plus chained proceeds) is assumed spendable
+  // first; the listed positions sell only the remaining gap, in order.
+  const available = Decimal.max(0, dec(base.netWorth.value.liquidEUR)).plus(
+    chainedProceeds,
+  );
+  let gap = Decimal.max(0, upfront.minus(available));
+  const fundingSales: NonNullable<ScenarioValue["fundingSales"]> = [];
+  let fundingCgTax = new Decimal(0);
+  if (gap.greaterThan(0) && (params.fundFromHoldingIds ?? []).length > 0) {
+    const replay = realizedCapitalGains({
+      openingLots: facts.taxLots ?? [],
+      movements: facts.movements,
+      asOf: base.asOf,
+      washSaleWindowMonths: taxConfig.washSaleWindowMonths,
+      holdingOpeningAsOf: {
+        ...(facts.holdingOpeningAsOf ?? {}),
+        ...Object.fromEntries(facts.holdings.map((h) => [h.id, h.openingAsOf])),
+      },
+    });
+    const disposals: Disposal[] = [];
+    const lots = replay.remainingLots;
+    for (const holdingId of params.fundFromHoldingIds ?? []) {
+      if (gap.lessThanOrEqualTo(0)) break;
+      const holding = facts.holdings.find((h) => h.id === holdingId);
+      const line = base.valuation.value.holdings.find(
+        (h) => h.holdingId === holdingId,
+      );
+      if (!holding || !line || !line.priced) continue;
+      const qty = dec(line.quantity);
+      const unitPrice = dec(line.priceEUR);
+      const positionValue = qty.times(unitPrice);
+      if (positionValue.lessThanOrEqualTo(0)) continue;
+      const gross = Decimal.min(gap, positionValue);
+      const soldQty = gross.dividedBy(unitPrice);
+      disposals.push({
+        id: `buy-house-fund-${holdingId}`,
+        holdingId,
+        quantity: quantity(soldQty),
+        proceedsEUR: money(gross),
+        date: base.asOf,
+      });
+      movements.push(
+        {
+          id: `scenario-buy-house-fund-${holdingId}`,
+          type: "sell",
+          accountId: holding.accountId,
+          holdingId,
+          quantity: quantity(soldQty),
+          amount: money(gross),
+          occurredAt: base.asOf,
+          correctsId: null,
+        },
+        // Proceeds move from the broker account to the cash target so the
+        // purchase withdrawal below draws on one pile.
+        cashMovement(
+          `scenario-buy-house-fund-out-${holdingId}`,
+          holding.accountId,
+          gross.negated(),
+          base.asOf,
+        ),
+        cashMovement(
+          `scenario-buy-house-fund-in-${holdingId}`,
+          accountId,
+          gross,
+          base.asOf,
+        ),
+      );
+      inputs.push(
+        holdingId,
+        ...lots.filter((l) => l.holdingId === holdingId).map((l) => l.id),
+        ...line.inputs,
+      );
+      gap = gap.minus(gross);
+      fundingSales.push({
+        holdingId,
+        grossEUR: money(gross),
+        gainEUR: "0.00", // filled from the FIFO result below
+      });
+    }
+    if (disposals.length > 0) {
+      const fifo = fifoCapitalGains({
+        lots,
+        disposals,
+        washSaleWindowMonths: taxConfig.washSaleWindowMonths,
+      });
+      for (const [i, d] of fifo.disposals.entries()) {
+        fundingSales[i].gainEUR = d.gainEUR;
+        breakdown.push({
+          label: `Sold to fund — ${holdingNameById[disposals[i].holdingId] ?? disposals[i].holdingId}`,
+          valueEUR: d.proceedsEUR,
+        });
+      }
+      fundingCgTax = marginalSavingsTax(
+        base.taxES.value.savingsBaseEUR,
+        dec(fifo.realizedGainEUR),
+        taxConfig,
+      );
+      breakdown.push({
+        label: "CG tax on funding sales (due next year)",
+        valueEUR: money(fundingCgTax.negated()),
+      });
+      exclusions.push(
+        "liquid cash is assumed spendable down to zero before any funding sale; the funding sale's CG tax is due next year and is not itself funded by further selling",
+      );
+    }
+  }
+  const uncovered = gap;
+  if (uncovered.greaterThan(0)) {
+    breakdown.push({
+      label: "Uncovered cash shortfall",
+      valueEUR: money(uncovered.negated()),
+    });
+  }
+
+  // 3. The purchase itself: upfront cash out, the property in at face value,
+  // the mortgage as a new liability.
+  movements.push(
+    cashMovement(
+      "scenario-buy-house-upfront",
+      accountId,
+      upfront.negated(),
+      base.asOf,
+    ),
+  );
+  variantProperties = [
+    ...variantProperties,
+    {
+      id: "scenario-buy-house-property",
+      value: money(price),
+      ownershipPct: "100",
+      valuedAt: base.asOf,
+      rentMonthly: "0",
+      costsMonthly: "0",
+      isPrimaryResidence: params.isPrimaryResidence ?? true,
+      purchasePrice: money(price),
+    },
+  ];
+  if (principal.greaterThan(0)) {
+    variantLiabilities = [
+      ...variantLiabilities,
+      {
+        id: "scenario-buy-house-mortgage",
+        propertyId: "scenario-buy-house-property",
+        balance: money(principal),
+      },
+    ];
+  }
+
+  // 4. The payment (net of any rent it replaces) raises the monthlySpend
+  // assumption so runway, safe spend and status react honestly.
+  const rentSaved = dec(params.monthlyRentSavedEUR ?? 0);
+  const spendDelta = Decimal.max(0, payment.minus(rentSaved));
+  const spendRow = facts.assumptions.find((a) => a.key === "monthlySpend");
+  const variantAssumptions = spendRow
+    ? facts.assumptions.map((a) =>
+        a.key === "monthlySpend"
+          ? { ...a, value: money(Decimal.max(0, dec(a.value).plus(spendDelta))) }
+          : a,
+      )
+    : facts.assumptions;
+  if (spendRow) inputs.push(spendRow.id);
+  if (rentSaved.greaterThan(0)) {
+    exclusions.push(
+      "the monthly rent you stop paying nets against the mortgage payment in the adjusted spend",
+    );
+  } else {
+    exclusions.push(
+      "no rent replacement assumed — if you currently rent, pass the rent so the payment nets against it",
+    );
+  }
+
+  const variantFacts: SnapshotFacts = {
+    ...facts,
+    properties: variantProperties,
+    liabilities: variantLiabilities,
+    movements: [...facts.movements, ...movements],
+    assumptions: variantAssumptions,
+  };
+  const variant = compute(variantFacts);
+
+  // Δ tax carries the one-off ITP and the chained sale's taxes; the funding
+  // sales' CG is NOT added here — the variant's own tax estimate already picks
+  // up the synthetic sell movements (as in the sell-position scenario).
+  const oneOffForDiff = itp.plus(chainedTax ?? 0);
+  const oneOffTaxTotal =
+    chainedTax === null ? null : itp.plus(chainedTax).plus(fundingCgTax);
+
+  return buildResult({
+    base,
+    inputs,
+    value: {
+      key: `buy-house:${money(price)}:${money(downRate)}:${money(dec(params.mortgageRateAnnual))}:${params.termYears}`,
+      kind: "buy-house",
+      label: `Buy home at ${formatEURCoarse(price)} (${downRate.times(100).toFixed(0)}% down, ${dec(params.mortgageRateAnnual).times(100).toFixed(2)}% over ${params.termYears}y)`,
+      irreversible: true,
+      diff: diffSnapshots(base, variant, money(oneOffForDiff)),
+      oneOffTaxEUR: oneOffTaxTotal === null ? null : money(oneOffTaxTotal),
+      proceedsEUR: money(upfront.negated()),
+      ...(basisIncomplete ? { basisIncomplete: true } : {}),
+      breakdown,
+      mortgage: mortgage.value,
+      ...(fundingSales.length > 0 ? { fundingSales } : {}),
+      ...(uncovered.greaterThan(0)
+        ? { uncoveredShortfallEUR: money(uncovered) }
+        : {}),
+      exclusions,
     },
   });
 }

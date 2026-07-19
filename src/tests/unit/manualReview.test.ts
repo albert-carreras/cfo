@@ -19,6 +19,10 @@ describe("touchesIrreversibleAction", () => {
     "withdraw my pension early?",
     "rescatar el plan de pensiones",
     "cash out the broker account",
+    "Should I buy a house for 400k?",
+    "how much mortgage should I get?",
+    "¿me compro un piso con hipoteca?",
+    "purchase a flat in Girona",
   ])("gates %j", (question) => {
     expect(touchesIrreversibleAction(question)).toBe(true);
   });

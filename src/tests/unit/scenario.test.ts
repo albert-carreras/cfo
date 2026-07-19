@@ -69,7 +69,7 @@ describe("sellPropertyScenario", () => {
     expect(rentalA.value.irreversible).toBe(true);
     expect(rentalA.snapshotId).toBe("snap_scenario");
     expect(rentalA.source).toBe("scenario.v1");
-    expect(rentalA.version).toBe("scenario.es.2026.7");
+    expect(rentalA.version).toBe("scenario.es.2026.8");
     expect(rentalA.inputs).toContain("prop_rent_a");
     expect(rentalA.inputs).toContain("acc_bank"); // proceeds destination
   });

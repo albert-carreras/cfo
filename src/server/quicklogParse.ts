@@ -392,7 +392,8 @@ async function loadCatalogue() {
 
 const defaultDeps: QuicklogParseDeps = {
   apiKey: () => getServerEnv().OPENAI_API_KEY,
-  clientFor: getQuicklogClient,
+  clientFor: (opts) =>
+    getQuicklogClient({ ...opts, model: getServerEnv().OPENAI_MODEL }),
   catalogue: loadCatalogue,
   today: () => new Date().toISOString().slice(0, 10),
 };

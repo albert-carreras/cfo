@@ -70,7 +70,8 @@ const defaultDeps: PictureDeps = {
   assumptionRows: loadAssumptionRows,
   pictureForSnapshot: (snapshotId) => pictureForSnapshot(snapshotId),
   latestPictureRow: () => latestPicture(),
-  clientFor: getPictureClient,
+  clientFor: (opts) =>
+    getPictureClient({ ...opts, model: getServerEnv().OPENAI_MODEL }),
   savePicture: (row) => savePicture(row),
   today: () => new Date().toISOString().slice(0, 10),
 };

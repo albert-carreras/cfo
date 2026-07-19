@@ -5,6 +5,7 @@ import { validateAnswer } from "@/ai/schema";
 import type { AskAnswer, AskContext } from "@/ai/types";
 import { computeSnapshot } from "@/calc/snapshot";
 import { askQuestion, type AskDeps } from "@/server/ask";
+import { buildAskTooling } from "@/server/askTools";
 import { facts, fixture, FIXTURE_AS_OF } from "../fixtures";
 
 // The orchestration seam, end to end with no DB and no network: every
@@ -137,6 +138,58 @@ describe("askQuestion", () => {
       reason: "provider-error",
     });
     expect(saved).toHaveLength(0);
+  });
+
+  it("tool-registered metrics reach validation and the persisted context", async () => {
+    // A client that behaves like a provider mid-tool-loop: it executes a tool
+    // through the context's tooling, then answers via the registered token.
+    const toolUser = {
+      async ask(ctx: AskContext) {
+        const result = await ctx.tooling!.execute("mortgage_terms", {
+          principalEUR: 300000,
+          rateAnnualPct: 3,
+          termYears: 25,
+        });
+        expect(result.ok).toBe(true);
+        const answer: AskAnswer = {
+          statements: [
+            {
+              label: "calculated",
+              text: "That mortgage would cost {{tool.1.monthlyPaymentEUR}} a month.",
+              citations: [],
+            },
+          ],
+          suggestsReview: false,
+          requiresManualReview: false,
+        };
+        return { answer, model: "fake-tool-user" };
+      },
+    };
+    const { deps, saved } = makeDeps({
+      clientFor: () => ({ ok: true, client: toolUser }),
+      tooling: async ({ ctx, snapshot: snap, asOf }) =>
+        buildAskTooling({
+          ctx,
+          snapshot: snap,
+          bundle: {
+            facts,
+            accountNameById: {},
+            holdingNameById: {},
+            propertyNameById: {},
+            sourceLabelById: {},
+          },
+          asOf,
+        }),
+    });
+    const result = await askQuestion("how much would a 300k mortgage cost?", deps);
+    expect(result).toMatchObject({ ok: true, droppedStatements: 0 });
+    const ctx = saved[0].context as AskContext;
+    // The tool metric persisted with the decision (the renderer needs it) and
+    // the executor closures did not.
+    expect(ctx.metrics.some((m) => m.id === "tool.1.monthlyPaymentEUR")).toBe(true);
+    expect(ctx.tooling).toBeUndefined();
+    // "mortgage" gates the deterministic manual-review lock.
+    expect(saved[0].requiresManualReview).toBe(true);
   });
 
   it("rejects an answer whose every statement fails validation", async () => {

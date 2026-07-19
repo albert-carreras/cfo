@@ -23,9 +23,13 @@ import type {
 // the provider.
 
 const RESPONSES_URL = "https://api.openai.com/v1/responses";
-const DEFAULT_MODEL = "gpt-5.5";
+const DEFAULT_MODEL = "gpt-5.6";
 const DEFAULT_TIMEOUT_MS = 60_000;
 const MAX_OUTPUT_TOKENS = 2_000;
+// Tool-call rounds an Ask may take before it must answer (each round is one
+// provider request; the deterministic executors themselves are local and
+// fast). Exceeding it is a provider error, never a silent partial answer.
+const MAX_TOOL_ROUNDS = 4;
 // The monthly review researches the web inside one call, so it gets a longer
 // leash than an interactive Ask — it runs from cron, nobody is waiting on it.
 const REVIEW_TIMEOUT_MS = 300_000;
@@ -46,13 +50,30 @@ export type FetchLike = (
 
 export class AskProviderError extends Error {}
 
-export function buildRequestBody(ctx: AskContext, model: string) {
+export function buildRequestBody(
+  ctx: AskContext,
+  model: string,
+  // The running conversation once tool rounds start: the original input plus
+  // the function_call items and their outputs, resent whole (store:false —
+  // nothing lives server-side between rounds).
+  input?: unknown,
+) {
   return {
     model,
     instructions: ctx.instructions,
-    input: ctx.input,
+    input: input ?? ctx.input,
     store: false, // privacy-critical: the provider stores responses by default
     max_output_tokens: MAX_OUTPUT_TOKENS,
+    ...(ctx.tooling && ctx.tooling.definitions.length > 0
+      ? {
+          tools: ctx.tooling.definitions.map((d) => ({
+            type: "function",
+            name: d.name,
+            description: d.description,
+            parameters: d.parameters,
+          })),
+        }
+      : {}),
     text: {
       format: {
         type: "json_schema",
@@ -140,6 +161,34 @@ type ResponsesPayload = {
   }[];
 };
 
+// Function calls the model made this round. The raw item is kept so it can be
+// resent verbatim next round (the Responses API matches outputs by call_id).
+export type ExtractedFunctionCall = {
+  callId: string;
+  name: string;
+  argumentsJson: string;
+  item: unknown;
+};
+
+export function extractFunctionCalls(payload: unknown): ExtractedFunctionCall[] {
+  const p = payload as {
+    output?: { type?: string; call_id?: string; name?: string; arguments?: string }[];
+  };
+  return (p?.output ?? [])
+    .filter(
+      (i) =>
+        i.type === "function_call" &&
+        typeof i.call_id === "string" &&
+        typeof i.name === "string",
+    )
+    .map((i) => ({
+      callId: i.call_id as string,
+      name: i.name as string,
+      argumentsJson: i.arguments ?? "{}",
+      item: i,
+    }));
+}
+
 // Pure extraction so refusals / incomplete output / malformed payloads are
 // unit-testable from fixtures without network.
 export function parseResponsesPayload(
@@ -176,31 +225,71 @@ export function createOpenAiAskClient(opts: {
 
   return {
     async ask(ctx) {
-      const response = await fetchImpl(RESPONSES_URL, {
-        method: "POST",
-        headers: {
-          authorization: `Bearer ${opts.apiKey}`,
-          "content-type": "application/json",
-        },
-        body: JSON.stringify(buildRequestBody(ctx, model)),
-        signal: AbortSignal.timeout(timeoutMs),
-      });
-      if (!response.ok)
-        throw new AskProviderError(`provider returned HTTP ${response.status}`);
+      // The running conversation: the original input, then each round's
+      // function_call items and their outputs. With store:false nothing lives
+      // provider-side between rounds, so the whole thread is resent each time.
+      const items: unknown[] = [{ role: "user", content: ctx.input }];
 
-      const extracted = parseResponsesPayload(await response.json());
-      if (!extracted.ok) throw new AskProviderError(extracted.reason);
+      for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
+        const response = await fetchImpl(RESPONSES_URL, {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${opts.apiKey}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify(buildRequestBody(ctx, model, items)),
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+        if (!response.ok)
+          throw new AskProviderError(
+            `provider returned HTTP ${response.status}`,
+          );
+        const payload = await response.json();
 
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(extracted.text);
-      } catch {
-        throw new AskProviderError("provider returned malformed JSON");
+        const calls = ctx.tooling ? extractFunctionCalls(payload) : [];
+        if (calls.length > 0 && round >= MAX_TOOL_ROUNDS)
+          throw new AskProviderError("tool loop exceeded the round limit");
+        if (calls.length > 0) {
+          for (const call of calls) {
+            items.push(call.item);
+            let args: unknown = null;
+            try {
+              args = JSON.parse(call.argumentsJson || "{}");
+            } catch {
+              // fall through to the error result below
+            }
+            const result =
+              args === null
+                ? { ok: false as const, error: "malformed arguments JSON" }
+                : await ctx.tooling!.execute(call.name, args);
+            items.push({
+              type: "function_call_output",
+              call_id: call.callId,
+              output: JSON.stringify(
+                result.ok ? result.output : { error: result.error },
+              ),
+            });
+          }
+          continue;
+        }
+
+        const extracted = parseResponsesPayload(payload);
+        if (!extracted.ok) throw new AskProviderError(extracted.reason);
+
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(extracted.text);
+        } catch {
+          throw new AskProviderError("provider returned malformed JSON");
+        }
+        const answer = askAnswerSchema.safeParse(parsed);
+        if (!answer.success)
+          throw new AskProviderError(
+            "provider output failed the answer schema",
+          );
+        return { answer: answer.data, model };
       }
-      const answer = askAnswerSchema.safeParse(parsed);
-      if (!answer.success)
-        throw new AskProviderError("provider output failed the answer schema");
-      return { answer: answer.data, model };
+      throw new AskProviderError("tool loop exceeded the round limit");
     },
   };
 }

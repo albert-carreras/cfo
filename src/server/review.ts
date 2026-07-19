@@ -86,7 +86,8 @@ const defaultDeps: ReviewDeps = {
   reviewForMonth: (month) => reviewForMonth(month),
   previousReview: () => latestReview(),
   journaledDecisions: () => listDecisionsWithContext(),
-  clientFor: getReviewClient,
+  clientFor: (opts) =>
+    getReviewClient({ ...opts, model: getServerEnv().OPENAI_MODEL }),
   saveReview: (row) => saveReview(row),
   saveDecision: (row) => saveDecision(row),
   notify: (n) => sendNotification(n),

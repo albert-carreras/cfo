@@ -42,10 +42,10 @@ function fetchReturning(status: number, payload: unknown): FetchLike {
 
 describe("buildRequestBody", () => {
   it("never lets the provider store the exchange, bounds output, constrains the schema", () => {
-    const body = buildRequestBody(ctx, "gpt-5.5");
+    const body = buildRequestBody(ctx, "gpt-5.6");
     expect(body.store).toBe(false); // privacy-critical: provider stores by default
     expect(body.max_output_tokens).toBeGreaterThan(0);
-    expect(body.model).toBe("gpt-5.5");
+    expect(body.model).toBe("gpt-5.6");
     expect(body.text.format).toMatchObject({
       type: "json_schema",
       name: "ask_answer",
@@ -89,13 +89,15 @@ describe("createOpenAiAskClient", () => {
 
     const { answer, model } = await client.ask(ctx);
     expect(answer).toEqual(validAnswer);
-    expect(model).toBe("gpt-5.5");
+    expect(model).toBe("gpt-5.6");
 
     const { url, init } = sent!;
     expect(url).toContain("/v1/responses");
     const body = JSON.parse(init.body as string);
     expect(body.store).toBe(false);
-    expect(body.input).toBe(ctx.input);
+    // The ask input is sent as a message-item thread so tool rounds can
+    // append function_call items to it; the content is the context verbatim.
+    expect(body.input).toEqual([{ role: "user", content: ctx.input }]);
     expect((init.headers as Record<string, string>).authorization).toBe("Bearer sk-test");
     expect(init.signal).toBeInstanceOf(AbortSignal); // timeout always attached
   });
@@ -154,10 +156,10 @@ const okReviewPayload = {
 
 describe("buildPictureRequestBody", () => {
   it("is ask-shaped — no tools, store:false, schema-constrained, longer leash", () => {
-    const body = buildPictureRequestBody(ctx, "gpt-5.5");
+    const body = buildPictureRequestBody(ctx, "gpt-5.6");
     expect(body.store).toBe(false);
     expect("tools" in body).toBe(false);
-    expect(body.max_output_tokens).toBeGreaterThan(buildRequestBody(ctx, "gpt-5.5").max_output_tokens);
+    expect(body.max_output_tokens).toBeGreaterThan(buildRequestBody(ctx, "gpt-5.6").max_output_tokens);
     expect(body.text.format).toMatchObject({
       type: "json_schema",
       name: "picture_narrative",
@@ -212,7 +214,7 @@ describe("createOpenAiPictureClient", () => {
 
 describe("buildReviewRequestBody", () => {
   it("is the ask request plus the web-search tool — still store:false, still schema-constrained", () => {
-    const body = buildReviewRequestBody(reviewCtx, "gpt-5.5");
+    const body = buildReviewRequestBody(reviewCtx, "gpt-5.6");
     expect(body.store).toBe(false);
     expect(body.tools).toEqual([{ type: "web_search" }]);
     expect(body.text.format).toMatchObject({
@@ -223,7 +225,7 @@ describe("buildReviewRequestBody", () => {
   });
 
   it("the ask request carries NO tools — web research happens only inside the review", () => {
-    expect("tools" in buildRequestBody(ctx, "gpt-5.5")).toBe(false);
+    expect("tools" in buildRequestBody(ctx, "gpt-5.6")).toBe(false);
   });
 });
 
@@ -235,7 +237,7 @@ describe("createOpenAiReviewClient", () => {
     });
     const { report, model } = await client.review(reviewCtx);
     expect(report).toEqual(validReport);
-    expect(model).toBe("gpt-5.5");
+    expect(model).toBe("gpt-5.6");
   });
 
   it("throws AskProviderError on a schema-violating report", async () => {

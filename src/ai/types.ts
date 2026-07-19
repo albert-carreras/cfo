@@ -31,12 +31,43 @@ export type MetricEntry = {
   citations: string[]; // provenance auto-attached to any statement using the token
 };
 
+// --- Deterministic tools the Ask model may call mid-answer ---
+
+// A tool is a pure calculator behind a JSON-schema'd parameter surface: the
+// model supplies the QUESTION's numbers as arguments (a price the user typed
+// is the user's number, not the model's), the server runs the deterministic
+// calculator, and the results come back as new {{metric-id}} tokens. The
+// digit-dropping validator stays untouched — a tool extends what the model
+// can reference, never what it can invent (invariant #2).
+export type AskToolDefinition = {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>; // JSON Schema for the arguments
+};
+
+export type AskToolExecution =
+  | { ok: true; output: unknown } // the JSON the model sees as the call result
+  | { ok: false; error: string }; // returned to the model so it can correct
+
+export type AskTooling = {
+  definitions: AskToolDefinition[];
+  // Executes a named tool with the model-supplied arguments. Implementations
+  // register any new metric tokens (and their citations) on the shared
+  // context as a side effect — validation and rendering then see them like
+  // any snapshot metric.
+  execute: (name: string, args: unknown) => Promise<AskToolExecution>;
+};
+
 export type AskContext = {
   instructions: string; // the system prompt (labelling, token and citation rules)
   input: string; // the serialized JSON the model sees (the no-raw-dump boundary)
   metrics: MetricEntry[];
   allowedCitations: string[];
   citationLabels: Record<string, string>; // id → human label, for rendering answers
+  // Present only when the server attached deterministic tools (the provider
+  // client runs the call loop; the executor lives server-side). Stripped
+  // before the context is persisted with a decision.
+  tooling?: AskTooling;
 };
 
 export interface AskClient {

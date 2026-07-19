@@ -21,6 +21,7 @@ Open items live in the [roadmap backlog](roadmap.md).
 | Decision outcomes | `decisionOutcome.ts` | the accountability loop: each journaled decision's pinned snapshot summary vs the current one — Δ net worth, Δ runway, status then → now. Pinned on every review row; the track record's math |
 | Concentration | `concentration.ts` | position % of investable · single-broker % · RE equity % · Spain exposure vs versioned ceilings (`config/concentration.ts`). Classifies, never shames. Tech look-through stays on the backlog |
 | Property yield | `propertyYield.ts` | **unlevered** gross/net yield per property + the real comparison vs the assumed ETF return (`propertyYield.2026.1`): real net yield and `(1+expectedReturn)/(1+longRunInflation) − 1`, gap sign-aware. Unlevered on purpose — financing/owner equity not modelled; the ETF side is the user's assumption, never a prediction. Rides the sell-property scenario cards and `scenario.N.*Yield*` Ask tokens |
+| Mortgage | `mortgage.ts` | French (constant-payment) amortization over caller-supplied principal/rate/term — monthly payment, total interest, and the **+2pt stress leg** (a versioned convention, never a rate forecast). Consumes no facts (`inputs: []` — the terms are the provenance); feeds the buy-house scenario and the `mortgage_terms` Ask tool |
 | Real estate (rest) | `realEstate.ts` | backlog: return on equity with mortgage interest · liquidity penalty · life-utility (sale tax + rough plusvalía live in the scenario engine) |
 | Tax — solidarity / plusvalía detail | `taxES.ts` (extend) | backlog: ISGF · detailed RE-gain · legal IP valuation basis — what remains out is printed on the card |
 
@@ -195,7 +196,7 @@ The counterfactual layer — the actual gestor's numbers. A **scenario is a pure
 transform over `SnapshotFacts`**: transform the facts, recompute the **full snapshot** over them,
 and emit the **diff** (Δ net worth, Δ fireCounted, Δ runway, Δ safe spend, Δ tax-year estimate,
 status before/after). Provenance = the base `snapshotId` + the fact ids the scenario touched;
-version `scenario.es.2026.3` (`config/scenarios.ts`). The voice may narrate and compare these —
+version `scenario.es.2026.8` (`config/scenarios.ts`). The voice may narrate and compare these —
 it never originates them (invariant #2). Every scenario prints its **exclusions** next to its
 figures (principle #10).
 
@@ -241,10 +242,29 @@ figures (principle #10).
   sell-property scenario owns the full swap); **job exit / rental start** move nothing (null
   rows). Amounts apply as of today regardless of the event date — stated in the exclusions.
 
+- **Buy a house (2026.8 — parameterized, the Ask tool's scenario)** — the composed purchase:
+  **ITP at the Cataluña progressive scale** (`PROPERTY_PURCHASE_ITP_ES_CAT`, Decreto-ley 5/2025:
+  10% to 600k / 11% to 900k / 12% to 1.5M / 13% above — reduced rates and the 20% large-holder
+  rate excluded; a new build pays IVA+AJD instead, stated) + a flat rough rate for the other
+  purchase costs, a **mortgage** (`mortgage.v1`: payment, total interest, +2pt stress) whose
+  payment (net of an optional replaced rent) **raises the `monthlySpend` assumption** so
+  Δ runway/safe-spend/status react honestly, and a **funding plan**: liquid cash first (down to
+  zero, stated), then optional **funding sales** of named positions — just enough gross, FIFO CG
+  tax marginal on the savings base, due next year (the variant's own tax estimate picks the sells
+  up; the diff never double-counts) — then an optional **chained sale of an existing property**
+  (the shared sell-property terms: rough plusvalía, primary-residence exemption,
+  `basisIncomplete` propagation). Anything still uncovered prints as an explicit shortfall row.
+  Not part of the standard set (it needs the user's parameters); the Ask layer runs it on demand
+  through the `buy_house_scenario` tool ([ai-analyst](ai-analyst.md)). Irreversible →
+  manual-review-gated, and `buy`/`purchase`/`mortgage` (EN/ES/CA stems) now fire the
+  deterministic gate.
+
 The **standard decision set** is computed inside `computeSnapshot` (one scenario per live
 property, per held priced position, plus the two planned-event views) and stored on the strategic
 snapshot — the Ask layer and the `/detail` decision cards read it from there. Scenario variants
-recompute with `withScenarios: false`, so counterfactuals never nest.
+recompute with `withScenarios: false`, so counterfactuals never nest. The parameterized buy-house
+scenario runs at ask time instead — same engine, same diff contract, parameters from the
+question.
 
 ## Concentration (`concentration.ts`)
 

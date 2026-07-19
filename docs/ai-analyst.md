@@ -49,6 +49,22 @@ the enforcement is deterministic, in `src/ai/schema.ts`:
   irreversibility and exclusions. The ids are **positional on purpose** — the scenario keys embed
   fact ids, which never cross the no-raw-dump boundary. So "should I sell the apartment?" is
   answered by comparing deterministic counterfactuals, gated by the same manual-review lock.
+- **Hypothetical decisions get deterministic tools** (`src/server/askTools.ts` + the call loop in
+  `src/ai/openai.ts`). The precomputed scenario set can't answer "what if I buy a house for
+  €400k?" — the parameters live in the question. So Ask carries two **function tools**:
+  `buy_house_scenario` (the parameterized scenario — ITP, mortgage terms, funding sales, chained
+  sale, down-payment sweep) and `mortgage_terms` (plain loan arithmetic). The model passes the
+  question's numbers as ARGUMENTS — a price the user typed is the **user's** number, not the
+  model's — the server runs the pure calculators and registers the results as new
+  `{{tool.N.*}}` metric tokens on the same context, and the model references them exactly like
+  snapshot metrics. **The digit validator is untouched**: a tool extends what the model can
+  reference, never what it can invent (invariant #2 holds by construction). Executor errors go
+  back to the model as tool output (it can correct the call); the loop is bounded
+  (`MAX_TOOL_ROUNDS`), each round resent whole under `store: false`. Positions and properties
+  are referenced by the **positional scenario ids** already in the context — fact ids stay
+  behind the no-raw-dump boundary. Tool-registered metrics persist with the journaled decision
+  (the executor closures don't), so answers re-render byte-identically. Without a key the tools
+  don't exist — same deterministic floor as everything else.
 
 ## Decision journal
 
@@ -252,7 +268,8 @@ the voice pattern, and the most constrained:
 
 ## Provider
 
-Behind `src/ai/*`. The model needs **Structured Outputs** (schema-constrained proposals) and a
-**web-search tool** (in-review research only). The concrete provider / model is recorded once, in
+Behind `src/ai/*`. The model needs **Structured Outputs** (schema-constrained proposals), a
+**web-search tool** (in-review research only) and **function calling** (the Ask tools). The
+concrete provider / model is recorded once, in
 [architecture](architecture.md#ai-provider-abstraction) — not here, and not in the product design
 (principles #13).

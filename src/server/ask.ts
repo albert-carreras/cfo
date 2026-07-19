@@ -3,11 +3,15 @@ import { getAskClient, type AskClientResult } from "@/ai";
 import { buildAskContext, type AskAssumption } from "@/ai/context";
 import { touchesIrreversibleAction } from "@/ai/manualReview";
 import { validateAnswer } from "@/ai/schema";
+import type { AskContext, AskTooling } from "@/ai/types";
 import { profile } from "@/calc/profile";
+import type { StrategicSnapshot } from "@/calc/snapshot";
+import { buildAskTooling, TOOLS_NOTE } from "./askTools";
 import { db } from "./db";
 import { assumptions } from "./db/schema";
 import { saveDecision } from "./decisions";
 import { getServerEnv } from "./env";
+import { loadFacts } from "./facts";
 import { latestStrategicSnapshot, storedSnapshotResult } from "./snapshots";
 
 // The Ask orchestration seam — the only place the voice touches the
@@ -44,6 +48,14 @@ export type AskDeps = {
     model: string;
   }) => Promise<{ id: string }>;
   today: () => string;
+  // Attaches the deterministic tools (buy_house_scenario, mortgage_terms) to
+  // the context. Optional and null-able so tests — and any caller that wants
+  // the plain metric-only Ask — can run without the facts round-trip.
+  tooling?: (args: {
+    ctx: AskContext;
+    snapshot: StrategicSnapshot;
+    asOf: string;
+  }) => Promise<AskTooling | null>;
 };
 
 async function loadAssumptionRows(): Promise<AskAssumption[]> {
@@ -61,9 +73,12 @@ const defaultDeps: AskDeps = {
   apiKey: () => getServerEnv().OPENAI_API_KEY,
   latestSnapshotRow: () => latestStrategicSnapshot(),
   assumptionRows: loadAssumptionRows,
-  clientFor: getAskClient,
+  clientFor: (opts) =>
+    getAskClient({ ...opts, model: getServerEnv().OPENAI_MODEL }),
   saveDecision: (row) => saveDecision(row),
   today: () => new Date().toISOString().slice(0, 10),
+  tooling: async ({ ctx, snapshot, asOf }) =>
+    buildAskTooling({ ctx, snapshot, bundle: await loadFacts(), asOf }),
 };
 
 export async function askQuestion(
@@ -105,10 +120,29 @@ export async function askQuestion(
     gateFired,
   });
 
+  // Deterministic tools ride on the context; their executions register new
+  // metric tokens on THIS ctx object, so validation and the persisted context
+  // below see them like any snapshot metric.
+  if (deps.tooling) {
+    const tooling = await deps.tooling({ ctx, snapshot, asOf: deps.today() });
+    if (tooling) {
+      ctx.tooling = tooling;
+      ctx.instructions += TOOLS_NOTE;
+    }
+  }
+
   let outcome;
   try {
     outcome = await clientResult.client.ask(ctx);
-  } catch {
+  } catch (err) {
+    // Log the underlying reason server-side (never to the user or ntfy):
+    // AskProviderError already carries the specific cause — HTTP status,
+    // refusal, incomplete output, timeout, schema mismatch — so a black-box
+    // "model could not be reached" in prod becomes an actionable line here.
+    console.error(
+      "[ask] provider call failed:",
+      err instanceof Error ? err.message : err,
+    );
     return { ok: false, reason: "provider-error" };
   }
 
@@ -118,10 +152,15 @@ export async function askQuestion(
   const requiresManualReview =
     gateFired || validated.answer.requiresManualReview;
 
+  // The executor closures never persist — the saved context is the plain
+  // data the renderer needs (now including any tool-registered metrics).
+  const persistedCtx = { ...ctx };
+  delete persistedCtx.tooling;
+
   const saved = await deps.saveDecision({
     question,
     answer: { ...validated.answer, requiresManualReview },
-    context: ctx,
+    context: persistedCtx,
     assumptions: assumptionRows,
     snapshotId: row.id,
     requiresManualReview,

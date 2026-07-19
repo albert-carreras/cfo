@@ -9,10 +9,12 @@ quick-log, the calm home/detail/reviews UI), the Spanish/Cataluña tax engine (`
 FIFO capital gains, IRPF scales, wealth tax, derived loss carry-forward, versioned year-selected
 configs), the daily market feed (`src/server/feed/*` + the `/api/cron/daily` sidecar, material
 change, monthly strategic promotion), the scenario engine (`src/calc/scenario.ts` — pure
-transforms over `SnapshotFacts`, the diff is the advice's number), and the voice (`src/ai/*`:
-Ask with server-rendered metric tokens, the scheduled monthly Review with its deterministic
-floor, the Picture narrative, the decision journal + accountability loop). What remains is the
-backlog (`docs/roadmap.md`). The whole spec lives in `docs/`; read it before writing code —
+transforms over `SnapshotFacts`, the diff is the advice's number, including the parameterized
+buy-house scenario over `src/calc/mortgage.ts`), and the voice (`src/ai/*`:
+Ask with server-rendered metric tokens and deterministic tools (`src/server/askTools.ts` —
+`buy_house_scenario` / `mortgage_terms`, results registered as `{{tool.N.*}}` tokens), the
+scheduled monthly Review with its deterministic floor, the Picture narrative, the decision
+journal + accountability loop). What remains is the backlog (`docs/roadmap.md`). The whole spec lives in `docs/`; read it before writing code —
 the design is load-bearing and already decided.
 
 ## The one rule

@@ -22,6 +22,7 @@ export type AskClientResult =
 
 export function getAskClient(opts: {
   apiKey: string | undefined;
+  model?: string;
   fetchImpl?: FetchLike;
 }): AskClientResult {
   if (!opts.apiKey) return { ok: false, reason: "no-key" };
@@ -29,6 +30,7 @@ export function getAskClient(opts: {
     ok: true,
     client: createOpenAiAskClient({
       apiKey: opts.apiKey,
+      model: opts.model,
       fetchImpl: opts.fetchImpl,
     }),
   };
@@ -43,6 +45,7 @@ export type ReviewClientResult =
 
 export function getReviewClient(opts: {
   apiKey: string | undefined;
+  model?: string;
   fetchImpl?: FetchLike;
 }): ReviewClientResult {
   if (!opts.apiKey) return { ok: false, reason: "no-key" };
@@ -50,6 +53,7 @@ export function getReviewClient(opts: {
     ok: true,
     client: createOpenAiReviewClient({
       apiKey: opts.apiKey,
+      model: opts.model,
       fetchImpl: opts.fetchImpl,
     }),
   };
@@ -64,6 +68,7 @@ export type PictureClientResult =
 
 export function getPictureClient(opts: {
   apiKey: string | undefined;
+  model?: string;
   fetchImpl?: FetchLike;
 }): PictureClientResult {
   if (!opts.apiKey) return { ok: false, reason: "no-key" };
@@ -71,6 +76,7 @@ export function getPictureClient(opts: {
     ok: true,
     client: createOpenAiPictureClient({
       apiKey: opts.apiKey,
+      model: opts.model,
       fetchImpl: opts.fetchImpl,
     }),
   };
@@ -85,6 +91,7 @@ export type QuicklogClientResult =
 
 export function getQuicklogClient(opts: {
   apiKey: string | undefined;
+  model?: string;
   fetchImpl?: FetchLike;
 }): QuicklogClientResult {
   if (!opts.apiKey) return { ok: false, reason: "no-key" };
@@ -92,6 +99,7 @@ export function getQuicklogClient(opts: {
     ok: true,
     client: createOpenAiQuicklogClient({
       apiKey: opts.apiKey,
+      model: opts.model,
       fetchImpl: opts.fetchImpl,
     }),
   };
