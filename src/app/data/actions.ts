@@ -144,8 +144,6 @@ export async function createPlan(formData: FormData) {
     type: text(formData, "type"),
     date: text(formData, "date"),
     amount: text(formData, "amount"),
-    probability: text(formData, "probability") || "1",
-    includedInBaseCase: formData.get("includedInBaseCase") === "on",
     note: optional(formData, "note"),
   });
   done("#plans");

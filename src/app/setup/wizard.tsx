@@ -1162,7 +1162,7 @@ export function SetupWizard({ today }: { today: string }) {
                   title={`Event ${i + 1}`}
                   onRemove={() => remove(events, setEvents, i)}
                 >
-                  <div className="grid gap-5 sm:grid-cols-4">
+                  <div className="grid gap-5 sm:grid-cols-3">
                     <Field label="Type" htmlFor={`ev-type-${i}`}>
                       <select
                         id={`ev-type-${i}`}
@@ -1205,36 +1205,11 @@ export function SetupWizard({ today }: { today: string }) {
                         }
                       />
                     </Field>
-                    <Field
-                      label="Probability"
-                      htmlFor={`ev-prob-${i}`}
-                      help="0–1"
-                    >
-                      <input
-                        id={`ev-prob-${i}`}
-                        inputMode="decimal"
-                        className="control"
-                        value={event.probability}
-                        onChange={(e) =>
-                          update(events, setEvents, i, {
-                            probability: e.target.value,
-                          })
-                        }
-                      />
-                    </Field>
                   </div>
-                  <label className="mt-4 flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={event.includedInBaseCase}
-                      onChange={(e) =>
-                        update(events, setEvents, i, {
-                          includedInBaseCase: e.target.checked,
-                        })
-                      }
-                    />
-                    Important context for the plan
-                  </label>
+                  <p className="fine-print mt-3">
+                    Context for decisions, not a modeled figure — it never moves
+                    a calculated number.
+                  </p>
                 </RowCard>
               ))}
             </div>

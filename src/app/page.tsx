@@ -1,6 +1,10 @@
 import { createId } from "@paralleldrive/cuid2";
 import Link from "next/link";
 import { fireHeadroom } from "@/calc/fire";
+import {
+  FIRE_BANDS_2026,
+  type FireBandParams,
+} from "@/calc/config/fireBands";
 import { computeSnapshot } from "@/calc/snapshot";
 import { db } from "@/server/db";
 import { plannedEvents } from "@/server/db/schema";
@@ -43,6 +47,18 @@ function eur(value: string | null | undefined, digits = 0) {
     currency: "EUR",
     maximumFractionDigits: digits,
   }).format(Number(value));
+}
+
+// A short, human reading of a band's stress parameters, derived from config so
+// the copy can never drift from the numbers the calculator actually applies.
+function describeStress(params: FireBandParams): string {
+  const spendPct = Math.round((Number(params.spendMultiplier) - 1) * 100);
+  const haircutPct = Math.round(Number(params.assetHaircut) * 100);
+  const swrPts = Number(params.swrDelta) * 100;
+  const parts = [`spend ${spendPct >= 0 ? "+" : "−"}${Math.abs(spendPct)}%`];
+  if (haircutPct > 0) parts.push(`pile −${haircutPct}%`);
+  parts.push(`rate ${swrPts >= 0 ? "+" : "−"}${Math.abs(swrPts)}pt`);
+  return parts.join(", ");
 }
 
 function statusClass(value: "ok" | "watch" | "update") {
@@ -142,12 +158,7 @@ export default async function PicturePage() {
         active="picture"
         title="Picture"
         kicker={`CFO / CURRENT POSITION / ${asOf}`}
-        actions={
-          <>
-            <a href="/api/export" className="button-secondary">Export .md</a>
-            <CopyExportButton />
-          </>
-        }
+        actions={<CopyExportButton />}
       />
 
       <div className="status-strip">
@@ -223,16 +234,21 @@ export default async function PicturePage() {
           textValue
           value={conservative?.holds == null ? "—" : conservative.holds ? "Holds" : "Does not hold"}
           note={
-            conservative?.holds === false &&
-            conservativeHeadroom !== null &&
-            conservative.monthlySpendEUR ? (
-              <span style={{ color: "var(--warn)" }}>
-                Misses by {eur(String(Math.abs(Number(conservativeHeadroom))))}/mo at{" "}
-                {eur(conservative.monthlySpendEUR)}/mo spend
-              </span>
-            ) : (
-              "Current position only; open plans are not modeled"
-            )
+            <>
+              Joint stress test: {describeStress(FIRE_BANDS_2026.conservative)}.{" "}
+              {conservative?.holds === false &&
+              conservativeHeadroom !== null &&
+              conservative.monthlySpendEUR ? (
+                <span style={{ color: "var(--warn)" }}>
+                  Misses by {eur(String(Math.abs(Number(conservativeHeadroom))))}/mo at{" "}
+                  {eur(conservative.monthlySpendEUR)}/mo spend.
+                </span>
+              ) : conservative?.holds ? (
+                "Spend fits even under all three at once."
+              ) : (
+                "Open plans are not modeled."
+              )}
+            </>
           }
         />
       </div>
@@ -253,7 +269,7 @@ export default async function PicturePage() {
               <SubmitButton className="button-primary" pendingLabel="Checking… takes ~30 s">
                 Check now
               </SubmitButton>
-              <p className="fine-print mt-1">Runs the check now · ~30 s</p>
+              <p className="fine-print mt-1">Re-run on demand · ~30 s</p>
             </form>
           </div>
           {(checkReport?.observations?.length ?? 0) > 0 && (
@@ -262,7 +278,10 @@ export default async function PicturePage() {
             </ul>
           )}
           <p className="fine-print mt-3">
-            Figures are computed by the trust core. The AI reads that result and adds only a short qualitative check.
+            A dated record kept in History, distinct from “Current” above (which is live and recomputed each visit).
+            It pairs the deterministic verdict with a short AI note — the trust core computes every figure; the AI only
+            reads the result and adds a qualitative read, never a number. It runs automatically each month; “Check now”
+            re-runs it on demand, e.g. right after a data update.
           </p>
         </div>
       </section>

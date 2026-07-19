@@ -31,12 +31,7 @@ export default async function HistoryPage() {
         active="history"
         title="History"
         kicker="CFO / AUDIT TRAIL / APPEND ONLY"
-        actions={
-          <>
-            <a href="/api/export" className="button-secondary">Export .md</a>
-            <CopyExportButton />
-          </>
-        }
+        actions={<CopyExportButton />}
       />
       <div className="status-strip">
         <div className="status-cell"><div className="microlabel">Checks</div><div className="status-value ok">{checks.length} shown</div></div>
@@ -72,7 +67,20 @@ export default async function HistoryPage() {
               return <tr key={update.id}>
                 <td className="mono">{update.createdAt.toISOString().slice(0, 10)}</td>
                 <td className="mono">{update.asOf}</td>
-                <td>{changes.length} observations</td>
+                <td>
+                  {changes.length === 0 ? (
+                    "—"
+                  ) : (
+                    <ul className="change-list">
+                      {changes.map((change, index) => (
+                        <li key={`${change.label ?? "value"}-${index}`}>
+                          <span>{change.label ?? "value"}</span>
+                          <span className="mono">{change.value ?? "—"}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </td>
                 <td>{update.note ?? "—"}</td>
               </tr>;
             })}

@@ -267,6 +267,10 @@ textarea.control { min-height: 5rem; resize: vertical; }
 .check-list li { padding: 0.25rem 0; border-top: 1px solid var(--hairline); }
 .check-list li::before { content: "→"; margin-right: .45rem; color: var(--accent); font-family: var(--font-mono); }
 
+.change-list { margin: 0; padding: 0; list-style: none; }
+.change-list li { display: flex; justify-content: space-between; gap: 1rem; padding: .15rem 0; }
+.change-list li + li { border-top: 1px solid var(--hairline); }
+
 .event-row { display: grid; grid-template-columns: 8rem 1fr auto; gap: .65rem; align-items: baseline; padding: .5rem .1rem; border-bottom: 1px solid var(--hairline); }
 .event-row time, .mono { font-family: var(--font-mono); }
 

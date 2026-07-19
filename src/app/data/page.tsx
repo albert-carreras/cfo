@@ -372,12 +372,11 @@ export default async function DataPage() {
           <form action={createPlan} className="grid gap-3 sm:grid-cols-3">
             <Field label="Type"><select className="control" name="type">{PLANNED_EVENT_TYPES.map((type) => <option key={type} value={type}>{EVENT_LABEL[type] ?? type}</option>)}</select></Field>
             <Field label="Expected date" help="Use 2050-01-01 if the timing is unknown."><input className="control" name="date" type="date" required /></Field>
-            <Field label="Rough amount"><input className="control" name="amount" inputMode="decimal" required /></Field>
-            <Field label="Probability"><input className="control" name="probability" inputMode="decimal" defaultValue="1" required /></Field>
+            <Field label="Rough amount" help="Leave 0 if the value is not yet decided."><input className="control" name="amount" inputMode="decimal" required /></Field>
             <Field label="Context"><input className="control" name="note" placeholder="Financing not chosen yet" /></Field>
-            <label className="flex items-center gap-2 text-xs"><input type="checkbox" name="includedInBaseCase" /> Important to the base plan</label>
             <SubmitButton className="button-primary sm:col-span-3" pendingLabel="Saving…">Add plan</SubmitButton>
           </form>
+          <p className="fine-print mt-2">Plans are context for decisions, not modeled figures. They never move a calculated number.</p>
         </details>
       </section>
     </PageShell>

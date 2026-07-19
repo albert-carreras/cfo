@@ -191,7 +191,7 @@ export async function buildContextPack(now = new Date()) {
   if (openEvents.length === 0) lines.push("- None recorded.");
   for (const event of openEvents) {
     lines.push(
-      `- ${event.type}: ${isAmountTBD(event.amount) ? "value TBD" : eur(event.amount)} around ${isTimingUnknown(event.date) ? "an unknown date" : event.date}; probability ${pct(event.probability)}; ${event.includedInBaseCase ? "important to the base plan" : "not included in the base plan"}${event.note ? `; ${event.note}` : ""}`,
+      `- ${event.type}: ${isAmountTBD(event.amount) ? "value TBD" : eur(event.amount)} around ${isTimingUnknown(event.date) ? "an unknown date" : event.date}${event.note ? `; ${event.note}` : ""}`,
     );
   }
 
