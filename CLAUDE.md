@@ -106,8 +106,9 @@ type CalcResult<T> = {
 
 ## Infra
 
-Served **only over Tailscale** at `cfo.<tailnet>.ts.net` (MagicDNS) — the tailnet is the auth
-boundary, so **no app-level login / 2FA**. A single host on the tailnet (home server or a VPS) or
-fully local, with Postgres on the same box. The LLM provider and the optional ntfy push topic
-(`NTFY_URL`, coarse no-amount payloads — see `src/server/notify.ts`) are the only things outside
-the tailnet; removing the env vars kills either egress.
+Runs on `au` as a Docker Compose stack. The app binds only to host loopback and an outbound-only
+Cloudflare Tunnel plus a tiny Workers VPC edge proxy publishes `https://cfo.bored.cat`;
+**Cloudflare Access is the auth boundary**, so there is still no app-level login / 2FA. Tailscale
+remains only the management path for SSH — never use Tailscale Serve or add a direct public origin
+route. Postgres stays private on the same box. Removing `OPENAI_API_KEY` or `NTFY_URL` kills the
+corresponding optional egress.

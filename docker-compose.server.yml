@@ -1,7 +1,7 @@
-# cfo production stack on the tailnet host.
-#   - tailscale: gives cfo its own node -> https://cfo.<tailnet>.ts.net (auto-TLS)
-#   - app: shares the tailscale netns, reachable ONLY over Tailscale (no host port)
+# cfo production stack on au.
+#   - app: published only on host loopback for the outbound Cloudflare Tunnel
 #   - app_setup: runs drizzle migrations once, then exits
+#   - cron: reaches the app over the private Compose network
 #   - db: postgres on an external volume so the deploy lifecycle can never drop it
 # Driven by ./stack (prod init | prod deploy). Copy .env.server.example -> .env first.
 
@@ -12,21 +12,6 @@ x-default-logging: &default-logging
     max-file: "3"
 
 services:
-  tailscale:
-    image: tailscale/tailscale:latest
-    hostname: cfo
-    logging: *default-logging
-    restart: unless-stopped
-    environment:
-      TS_AUTHKEY: ${TS_AUTHKEY}
-      TS_HOSTNAME: cfo
-      TS_STATE_DIR: /var/lib/tailscale
-      TS_USERSPACE: "true"
-      TS_SERVE_CONFIG: /config/serve.json
-    volumes:
-      - tailscale_state:/var/lib/tailscale
-      - ./infra/tailscale/serve.json:/config/serve.json:ro
-
   app:
     logging: *default-logging
     restart: unless-stopped
@@ -39,12 +24,11 @@ services:
     environment:
       NODE_ENV: "production"
       NEXT_TELEMETRY_DISABLED: "1"
-    # Share the Tailscale node's network: the app is published only via
-    # `tailscale serve` -> http://127.0.0.1:3222, never on a host port.
-    network_mode: service:tailscale
+    # The host connector can reach the origin, but the LAN/public Internet
+    # cannot: Docker binds the port only on au's loopback interface.
+    ports:
+      - "127.0.0.1:3222:3222"
     depends_on:
-      tailscale:
-        condition: service_started
       db:
         condition: service_healthy
       app_setup:
@@ -62,9 +46,8 @@ services:
       retries: 10
       start_period: 20s
 
-  # Daily price/FX update: busybox crond hits the app's cron route once a day
-  # (see infra/cron/crontab). Shares the tailscale netns like the app, so the
-  # route stays unreachable from anywhere but the tailnet.
+  # Daily price/FX update: busybox crond hits the app's cron route over the
+  # private Compose network (see infra/cron/crontab).
   cron:
     image: alpine:3.21
     logging: *default-logging
@@ -79,7 +62,6 @@ services:
         cp /config/crontab /etc/crontabs/root
         chmod 600 /etc/crontabs/root
         exec crond -f -d 8
-    network_mode: service:tailscale
     volumes:
       - ./infra/cron/crontab:/config/crontab:ro
     depends_on:
@@ -144,7 +126,6 @@ services:
       retries: 10
 
 volumes:
-  tailscale_state:
   postgres_data:
     external: true
     name: ${CFO_POSTGRES_VOLUME:-cfo_postgres_data}

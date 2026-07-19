@@ -9,22 +9,23 @@ DISPLAY_NAME=${0##*/}
 LOCAL_PROJECT_NAME=${CFO_LOCAL_PROJECT_NAME:-cfo-local}
 PROD_PROJECT_NAME=${CFO_PROD_PROJECT_NAME:-cfo-prod}
 PROD_DATA_VOLUME=${CFO_POSTGRES_VOLUME:-cfo_postgres_data}
-# The public URL is host-specific (your tailnet's MagicDNS name). Set
-# CFO_PUBLIC_URL in the environment or in .env — only this one key is read;
-# the Compose .env is never sourced as shell.
+CLOUDFLARED_SERVICE=cloudflared-cfo
+# CFO_PUBLIC_URL may override the stable production hostname. Only this key is
+# read from .env; the Compose .env is never sourced as shell.
 PUBLIC_URL=${CFO_PUBLIC_URL:-$([ -f .env ] && sed -n 's/^CFO_PUBLIC_URL=//p' .env | head -n 1)}
+PUBLIC_URL=${PUBLIC_URL:-https://cfo.bored.cat}
 
 usage() {
   cat <<EOF
 Usage:
   ./$DISPLAY_NAME local init          # dev db only (run \`npm run dev\` on the host)
   ./$DISPLAY_NAME local reset         # tear the dev db down, including its volume
-  ./$DISPLAY_NAME prod init           # first boot on the tailnet host
+  ./$DISPLAY_NAME prod init           # first boot on au (installs connector unit)
   ./$DISPLAY_NAME prod deploy         # git pull -> migrate -> rebuild & recreate
   ./$DISPLAY_NAME prod seed           # one-shot seed from scripts/seed.local.ts (mounted; real data, never committed)
   ./$DISPLAY_NAME status [local|prod]
   ./$DISPLAY_NAME logs <local|prod> [service]
-  ./$DISPLAY_NAME ready               # curl https://cfo.<tailnet>/api/ready
+  ./$DISPLAY_NAME ready               # local origin + Cloudflare Access checks
 EOF
 }
 
@@ -46,6 +47,21 @@ ensure_prod_data_volume() {
   run docker volume create "$PROD_DATA_VOLUME" >/dev/null
 }
 
+install_cloudflare_connector() {
+  run sudo test -f /etc/cloudflared/cfo.token \
+    || die "/etc/cloudflared/cfo.token missing — install the cfo-au tunnel token first"
+  info "Installing the Cloudflare Tunnel service"
+  run sudo cp infra/systemd/${CLOUDFLARED_SERVICE}.service \
+    /etc/systemd/system/${CLOUDFLARED_SERVICE}.service
+  run sudo systemctl daemon-reload
+  run sudo systemctl enable --now "$CLOUDFLARED_SERVICE"
+}
+
+check_cloudflare_connector() {
+  run systemctl is-active --quiet "$CLOUDFLARED_SERVICE" \
+    || die "$CLOUDFLARED_SERVICE is not active — see docs/deploy.md"
+}
+
 run_prod_deploy_path() {
   ensure_prod_data_volume
   info "Booting database"
@@ -53,8 +69,9 @@ run_prod_deploy_path() {
   info "Applying database migrations"
   compose_prod build app_setup
   compose_prod run --rm app_setup
-  info "Building and recreating the app + Tailscale node + daily cron"
-  compose_prod up -d --build --force-recreate --remove-orphans --wait tailscale app cron
+  info "Building and recreating the app + daily cron"
+  compose_prod up -d --build --force-recreate --remove-orphans --wait app cron
+  check_cloudflare_connector
   info "Ready at ${PUBLIC_URL:-<set CFO_PUBLIC_URL in .env>}"
 }
 
@@ -85,7 +102,7 @@ case "${1-}" in
     ;;
   prod)
     case "${2-}" in
-      init) run_prod_deploy_path ;;
+      init) install_cloudflare_connector; run_prod_deploy_path ;;
       deploy) prod_deploy ;;
       seed) run_prod_seed ;;
       *) usage; exit 1 ;;
@@ -94,7 +111,10 @@ case "${1-}" in
   status)
     case "${2:-prod}" in
       local) compose_local ps ;;
-      prod) compose_prod ps ;;
+      prod)
+        compose_prod ps
+        systemctl status "$CLOUDFLARED_SERVICE" --no-pager || true
+        ;;
       *) die "Unknown status target: ${2-}" ;;
     esac
     ;;
@@ -104,14 +124,27 @@ case "${1-}" in
     [ -n "$target" ] || die "Missing logs target"
     case "$target" in
       local) [ -n "$service" ] && compose_local logs -f "$service" || compose_local logs -f ;;
-      prod) [ -n "$service" ] && compose_prod logs -f "$service" || compose_prod logs -f ;;
+      prod)
+        if [ "$service" = cloudflared ]; then
+          run sudo journalctl -u "$CLOUDFLARED_SERVICE" -f
+        elif [ -n "$service" ]; then
+          compose_prod logs -f "$service"
+        else
+          compose_prod logs -f
+        fi
+        ;;
       *) die "Unknown logs target: $target" ;;
     esac
     ;;
   ready)
-    [ -n "$PUBLIC_URL" ] || die "set CFO_PUBLIC_URL in .env (e.g. https://cfo.<tailnet>.ts.net)"
-    curl -fsS "$PUBLIC_URL/api/ready"
-    printf '\n'
+    curl -fsS http://127.0.0.1:3222/api/ready
+    printf ' <- local origin\n'
+    access_status=$(curl -sS -o /dev/null -w '%{http_code}' "$PUBLIC_URL/api/ready")
+    case "$access_status" in
+      302|401|403) info "Cloudflare Access is blocking unauthenticated requests at $PUBLIC_URL" ;;
+      200) die "$PUBLIC_URL is public without an Access challenge — refusing to call this ready" ;;
+      *) die "unexpected HTTP $access_status from $PUBLIC_URL" ;;
+    esac
     ;;
   help|-h|--help|"")
     usage

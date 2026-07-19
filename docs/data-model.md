@@ -137,8 +137,8 @@ forms (the seed is the dev/test path). Dynamic state comes from the ledger. Driz
   except the once-only review path (`markReviewed` sets `reviewedAt`/`chosenAction` only while
   `reviewedAt is null`). A changed mind is a new question.
 - `settings` — app-level switches (`key` unique, `value`), currently unused. The Sensitive-mode
-  switch (its first key) was removed in June 2026: the tailnet plus removing the provider key is
-  the privacy boundary now, and a stale `sensitiveMode` row may remain and is ignored.
+  switch (its first key) was removed in June 2026: Cloudflare Access plus removing the provider
+  key is the privacy boundary now, and a stale `sensitiveMode` row may remain and is ignored.
 - `reviews` — **the monthly review log**: one append-only row per month,
   written by the scheduled `/api/cron/review` job. As built:
   ```

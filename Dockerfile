@@ -1,5 +1,5 @@
-# cfo — Tailscale-only Next.js app. Multi-stage build, Next standalone output.
-# Multi-stage Next standalone build, stripped to the essentials.
+# cfo — private-origin Next.js app. Multi-stage standalone build, stripped to
+# the essentials; production publishes the container only on host loopback.
 
 FROM node:24-bookworm-slim AS base
 WORKDIR /app

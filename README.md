@@ -60,9 +60,10 @@ npm run dev
 
 `npm run test:ci` is the gate — lint + typecheck + the full Vitest suite, no DB needed.
 
-Self-hosting: the intended deployment is a single host reachable **only over Tailscale** — the
-tailnet is the auth boundary, so there's no app-level login. See [docs/deploy.md](docs/deploy.md)
-for the Docker Compose stack (app + Postgres + Tailscale node + cron sidecar).
+Self-hosting: the production stack runs on `au`, with the app bound only to host loopback and
+published at `https://cfo.bored.cat` through an outbound-only Cloudflare Tunnel and edge Worker.
+Cloudflare Access is the auth boundary, so there is no app-level login; Tailscale remains only for
+server management. See [docs/deploy.md](docs/deploy.md) for the Docker Compose stack.
 
 Your real data lives in a git-ignored `scripts/seed.local.ts` and your `.env`; only the synthetic
 fixture is committed.
@@ -78,7 +79,7 @@ fixture is committed.
 | [docs/calculators.md](docs/calculators.md) | The deterministic trust core, the status engine, scenarios, tax. |
 | [docs/ai-analyst.md](docs/ai-analyst.md) | The pull-first Ask layer and the monthly Review analyst. |
 | [docs/roadmap.md](docs/roadmap.md) | What's deliberately not built yet. |
-| [docs/deploy.md](docs/deploy.md) | The Tailscale-only production stack. |
+| [docs/deploy.md](docs/deploy.md) | The private-origin Cloudflare Access production stack. |
 
 ## License
 

@@ -1,42 +1,112 @@
 # Deploy
 
-cfo runs as a small Docker Compose stack on a single tailnet host. It is reachable
-**only over Tailscale** at `https://cfo.<tailnet>.ts.net` — the tailnet is the auth boundary, so
-there is no app-level login (see [architecture.md](architecture.md)). No GitHub CI: the gate
-(`npm run test:ci`) runs locally before you push.
+cfo runs on **`au`** as a small Docker Compose stack. The app is published only on
+`127.0.0.1:3222`; an outbound-only Cloudflare Tunnel and a tiny Workers VPC edge proxy expose it at
+**https://cfo.bored.cat**. The app has no login: Cloudflare Access is the authentication boundary.
+
+Tailscale remains the management path for SSH and git, but it does not serve the app.
+There is no GitHub CI: run the local gate (`npm run test:ci`) before pushing.
+
+## Topology
+
+```
+browser
+  -> Cloudflare Access (default-deny identity policy)
+  -> cfo.bored.cat / Worker custom domain
+  -> cfo-edge Worker
+  -> Workers VPC binding (tunnel a28aa82a-795e-43a1-b025-579b43ed1893)
+  -> cloudflared-cfo.service on au (outbound QUIC only)
+  -> http://127.0.0.1:3222
+  -> cfo-prod-app-1 (Next.js)
+  -> cfo-prod-db-1 (private Compose network + external data volume)
+```
+
+The edge Worker in `infra/cloudflare/` preserves the request method, streaming body, cookies and
+Access headers while changing only the destination URL. It forces `Cache-Control: private,
+no-store` and `X-Robots-Tag: noindex`. `workers_dev` and preview URLs are disabled, so the custom
+domain is the Worker's only public entry point.
+
+Postgres lives in the external `cfo_postgres_data` volume, so `compose down -v` cannot drop the
+ledger. Its port is never published. The app's host port is explicitly bound to loopback, and the
+cron sidecar reaches `http://app:3222` over the private Compose network.
 
 ## Layout
 
-- `Dockerfile` — multi-stage, Next standalone output (`base → deps → build → jobs → prod`).
-- `docker-compose.server.yml` — `tailscale` (the node + TLS), `app`, `app_setup` (migrations),
-  `cron` (the daily feed trigger), `db`.
-- `stack` — the one script that does it all.
-- `infra/tailscale/serve.json` — `tailscale serve` config: `https://cfo.<tailnet>` → `127.0.0.1:3222`.
-
-The app has **no host port**: it shares the Tailscale node's network namespace and is published
-only through `tailscale serve`. Postgres lives in an **external** volume (`cfo_postgres_data`) so a
-`compose down -v` can never drop the ledger.
+- `Dockerfile` — multi-stage Next standalone output (`base -> deps -> build -> jobs -> prod`).
+- `docker-compose.server.yml` — `app`, `app_setup` (migrations), `cron`, and `db`.
+- `infra/cloudflare/worker.js` + `wrangler.jsonc` — the no-cache edge proxy and tunnel binding.
+- `infra/systemd/cloudflared-cfo.service` — the dedicated connector service on `au`.
+- `stack` — local/prod lifecycle, health and logs.
 
 ## Local dev
 
 ```sh
-docker compose up -d          # or: ./stack local init   (dev Postgres on :5433)
+docker compose up -d          # or: ./stack local init (dev Postgres on :5433)
 npm run db:migrate && npm run seed
 npm run dev                   # http://localhost:3222
 ```
 
-## First boot on the host (one time)
+## Cloudflare resources
+
+- Account: `17ef3b088f7d0af621420d0313ff4d39`
+- Tunnel: `cfo-au` / `a28aa82a-795e-43a1-b025-579b43ed1893`
+- Worker: `cfo-edge`
+- Custom domain: `cfo.bored.cat`
+- Connector unit: `cloudflared-cfo.service`
+- Root-readable token: `/etc/cloudflared/cfo.token`
+
+The token is never committed or passed as a process argument. The systemd unit reads it with
+`--token-file`; the connector is pinned to QUIC because the Workers VPC path requires it. The
+Worker's VPC binding owns routing, so the tunnel deliberately has no public hostname ingress rule
+and no `cfargotunnel.com` DNS record. This prevents a route around the Worker/Access hostname.
+
+## Cloudflare Access — create before publishing
+
+Do not deploy the Worker custom domain until this application exists. Without Access,
+`cfo.bored.cat` would be reachable by anyone on the Internet.
+
+1. In Cloudflare, open **Zero Trust -> Access controls -> Applications** and create a
+   **Self-hosted and private** application.
+2. Name it `cfo`; add the public hostname `cfo.bored.cat` with no path so the whole site is
+   protected.
+3. Add an **Allow** policy whose Include rule contains only the exact email address(es) permitted
+   to see the financial data. Do not use `Everyone` and do not use one-time PIN as the sole Include
+   rule.
+4. Select the existing identity provider. If using email codes, enable one-time PIN as a login
+   method but keep the policy restricted to the exact email address(es).
+5. Use a one-week session as a reasonable starting point and create the application.
+6. In a private browser window, verify an allowed identity reaches the app and another identity is
+   denied. Confirm the matching policy in Access authentication logs.
+
+Access applications are default-deny: a user must match an Allow policy. The origin stays private,
+the Worker has no `workers.dev` URL, and the tunnel has no public route.
+
+## First boot / Tailscale Serve cutover
+
+Install the `cfo-au` tunnel token as `/etc/cloudflared/cfo.token`, owned by root and mode `0600`,
+then update the production environment:
 
 ```sh
-git clone git@github.com:albert-carreras/cfo.git
-cd cfo
-cp .env.server.example .env   # set POSTGRES_PASSWORD (+ matching DATABASE_URL), TS_AUTHKEY, CFO_PUBLIC_URL
+cd ~/cfo
+cp .env.server.example .env   # first boot only; set Postgres credentials
+# Existing hosts: keep the current secrets, remove TS_AUTHKEY when rollback is no longer needed,
+# and set CFO_PUBLIC_URL=https://cfo.bored.cat
 ./stack prod init
 ```
 
-`TS_AUTHKEY` is a reusable, pre-approved key from
-<https://login.tailscale.com/admin/settings/keys>. On first boot the node registers as `cfo` and
-gets `https://cfo.<tailnet>.ts.net`.
+`prod init` installs/enables the committed connector unit, migrates the database, and recreates the
+app and cron without the old Tailscale sidecar. `--remove-orphans` removes that old container; it
+does not touch the external Postgres volume.
+
+Only after the Access application exists, deploy the edge:
+
+```sh
+wrangler deploy -c infra/cloudflare/wrangler.jsonc
+```
+
+Validate the Access challenge and an authenticated browser session before considering the cutover
+complete. Keep the old `TS_AUTHKEY` in the host `.env` until that validation succeeds; it is ignored
+by the new stack and provides a short rollback window.
 
 ## Deploy a change
 
@@ -44,65 +114,70 @@ gets `https://cfo.<tailnet>.ts.net`.
 # locally
 npm run test:ci && git push
 
-# on the host
-cd cfo && ./stack prod deploy   # pull -> migrate -> recreate app, Tailscale and cron
+# on au
+cd ~/cfo && ./stack prod deploy   # pull -> migrate -> rebuild/recreate app + cron
 ```
+
+Deploy `infra/cloudflare/` changes separately with Wrangler. Normal application deploys do not
+restart the connector because its loopback destination is stable.
 
 ## Day to day
 
 ```sh
 ./stack status prod
 ./stack logs prod app
-./stack ready                   # curl https://cfo.<tailnet>/api/ready
+./stack logs prod cloudflared
+./stack ready
 ```
+
+`./stack ready` checks the local origin and then requires the public URL to return an Access
+challenge (`302`, `401`, or `403`) to an unauthenticated request. A public `200` is treated as a
+failure. Use a browser session for the complete authenticated path.
 
 ## The daily feed
 
-A tiny `cron` sidecar (busybox crond, `infra/cron/crontab`) hits
-`http://127.0.0.1:3222/api/cron/daily` over the shared Tailscale netns, twice: at 06:15
-UTC (settled previous EU closes, after the US close) and again at 07:45 UTC — after
-Xetra/Euronext open at 07:00, when Yahoo's daily bar rolls to the current day, so the
-home's price freshness reads today rather than yesterday. Each run
-fetches a price for every live holding, FX from the ECB, upserts both (idempotent — safe
-to re-run), writes an `internal` snapshot, and promotes a `strategic` one on month
-rollover or material change. To run it by hand and see the per-symbol report:
+A tiny `cron` sidecar hits `http://app:3222/api/cron/daily` over the private Compose network at
+06:15 UTC (settled previous EU closes, after the US close) and 07:45 UTC (after Xetra/Euronext
+open). Each run fetches live holding prices and ECB FX, writes an internal snapshot, and promotes a
+strategic snapshot on month rollover or material change. The route is idempotent.
+
+To run it manually without exposing the cron route:
 
 ```sh
-curl https://cfo.<tailnet>.ts.net/api/cron/daily   # from any tailnet device
-./stack logs prod cron                             # the schedule's own output
+curl http://127.0.0.1:3222/api/cron/daily   # on au
+./stack logs prod cron
 ```
 
-**A holding's `ticker` is its feed symbol** — exchange-suffixed where the listing needs
-it (e.g. `VWCE.DE`; plain `SMH` for US listings). A holding with no ticker (or a wrong
-one) is reported in the route's JSON and, once its price is >10 days old, flips the home
-status to **Data stale** — it never silently keeps an old valuation quiet. Tickers are
-facts: fix them in `scripts/seed.local.ts` *only* if you're re-seeding anyway (re-seeding
-**wipes the ledger**), otherwise a one-line SQL `update holdings set ticker=… where isin=…`
-on the box is the safe path.
+A holding's `ticker` is its feed symbol (`VWCE.DE`, plain `SMH`, and so on). A missing or wrong
+ticker is reported by the route and eventually makes data quality stale; it never silently retains
+an indefinitely old valuation. Tickers are facts: fix them in `scripts/seed.local.ts` only when
+re-seeding anyway (which wipes the ledger); otherwise update the row directly on `au`.
 
 ## Seeding prod (one-time / rare)
 
-`seed.local.ts` (real data) is **never committed** — it lives only on the host and is
-**git-ignored**. The `seed` service **mounts** it from the host rather than baking it into the
-image, so you edit it in place and re-run without a rebuild:
+`scripts/seed.local.ts` contains real data and is never committed. It is mounted from the host into
+the one-shot seed container:
 
 ```sh
-cd cfo
-# edit scripts/seed.local.ts on the host (add accounts / holdings / open tax lots …)
-./stack prod seed               # boots db, mounts seed.local.ts, runs `npm run seed`
+./stack prod seed
 ```
 
-⚠️ `seed` is **idempotent: it WIPES every table and reloads** from `seed.local.ts`. Anything
-quick-logged in prod (`/log`) that isn't in the file is lost. **Day-to-day you never seed** — money
-movements and monthly spend go through `/log`, and tax lots derive from the ledger (a `buy` opens a
-lot, a `sell` consumes it FIFO). Seeding is only the **initial** load of slow-moving facts. Back up
-first if unsure (see below).
+The seed is destructive: it wipes every table and reloads from `seed.local.ts`. Anything logged in
+production but absent from the file is lost. Day-to-day money movements go through `/log`, and tax
+lots derive from the ledger; seed only for the initial slow-moving fact load and back up first.
 
 ## Backups
 
-Not automated (the external data volume survives redeploys). To snapshot manually:
+The external data volume survives redeploys. To snapshot manually:
 
 ```sh
 docker compose -f docker-compose.server.yml exec -T db \
   sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' | gzip > cfo-$(date -u +%Y%m%dT%H%M%SZ).sql.gz
 ```
+
+## Rollback
+
+Before removing `TS_AUTHKEY` from the host, the previous release can be checked out and deployed to
+recreate the dedicated Tailscale node/Serve path. That bypasses Cloudflare Access for tailnet
+members, so use it only for diagnosis and remove it again after recovery. The external Postgres
+volume is shared across either serving path and must never be deleted during rollback.

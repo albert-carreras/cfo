@@ -9,6 +9,7 @@
 .idea
 node_modules
 .next
+.wrangler
 out
 build
 coverage

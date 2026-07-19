@@ -126,18 +126,21 @@ the floor never depends on the provider.
 
 ## Privacy / security
 
-The **tailnet is the security boundary**: the app is served only over Tailscale at
-`cfo.<tailnet>.ts.net` (MagicDNS), never on the public internet (no Funnel). Only your own devices
-can reach it, so there's **no app-level login or 2FA** — Tailscale handles identity and access. The
-trade-off is explicit and accepted: anything on your tailnet can reach the financial data, so the
-threat model is "I trust every device I've joined."
+**Cloudflare Access is the security boundary**: the app has a public hostname at
+`https://cfo.bored.cat`, but every request is default-deny until an allowed identity authenticates.
+There is still **no app-level login or 2FA** — Access handles identity and authorization. The
+origin is not Internet-routable: Docker publishes Next.js only on `127.0.0.1:3222` on `au`, and a
+dedicated `cloudflared` service creates outbound-only QUIC connections. A tiny edge Worker owns the
+only public hostname and reaches that loopback origin through a tunnel-scoped Workers VPC binding;
+`workers_dev` is disabled and the tunnel has no public-hostname ingress/DNS route, so there is no
+alternate public URL around Access. Tailscale remains the management path for SSH and git, never
+the serving path.
 
-The data is still sensitive. The implementation provides the private
-tailnet boundary, local Postgres, the append-only movement ledger and snapshot provenance.
+The data is still sensitive. The implementation provides the private origin boundary, Access
+identity gate, local Postgres, the append-only movement ledger and snapshot provenance.
 Audit logging for editable facts and export/delete tooling stay on the [backlog](roadmap.md):
 
-- **The LLM boundary**: the model lives *outside* the tailnet, so it's the one boundary that
-  isn't network-enforced. By construction the LLM only ever receives summarised calculator JSON
+- **The LLM boundary**: by construction the LLM only ever receives summarised calculator JSON
   and assumption summaries — never raw documents or account dumps — and every request carries
   `store: false`. Disabling all external LLM calls = removing `OPENAI_API_KEY`; the `src/ai/*`
   factory returns a disabled marker before any provider code could run, and every AI surface
@@ -152,5 +155,5 @@ Audit logging for editable facts and export/delete tooling stay on the [backlog]
   env ⇒ no-op.
 - encrypted secrets at rest *if* third-party tokens ever exist (none in the manual-entry core — no
   open banking unless ever wanted)
-- Hosting: a single host on the tailnet (a home server, or a VPS joined to the tailnet) or fully
-  local, with Postgres on the same box. Nothing in the design depends on the choice.
+- Hosting: `au`, with Postgres on the same box and only the app's loopback port reachable by the
+  Cloudflare connector. The Docker network and database port are never published.

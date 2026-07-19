@@ -1,0 +1,27 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  "name": "cfo-edge",
+  "account_id": "17ef3b088f7d0af621420d0313ff4d39",
+  "main": "worker.js",
+  "compatibility_date": "2026-07-19",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [
+    {
+      "pattern": "cfo.bored.cat",
+      "custom_domain": true
+    }
+  ],
+  "vpc_networks": [
+    {
+      "binding": "CFO_ORIGIN",
+      "tunnel_id": "a28aa82a-795e-43a1-b025-579b43ed1893",
+      "remote": true
+    }
+  ],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  }
+}
