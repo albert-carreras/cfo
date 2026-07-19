@@ -1,16 +1,26 @@
 import { createId } from "@paralleldrive/cuid2";
 import Link from "next/link";
+import { fireHeadroom } from "@/calc/fire";
 import { computeSnapshot } from "@/calc/snapshot";
 import { db } from "@/server/db";
 import { plannedEvents } from "@/server/db/schema";
 import { loadFacts } from "@/server/facts";
 import { latestHealthCheck } from "@/server/healthCheck";
-import { latestSnapshot, latestStrategicSnapshot } from "@/server/snapshots";
+import {
+  latestSnapshot,
+  latestStrategicSnapshot,
+  listSnapshots,
+  storedSnapshotResult,
+} from "@/server/snapshots";
+import { isAmountTBD, isTimingUnknown } from "@/shared/plans";
 import { checkNow } from "./actions";
+import { CopyExportButton } from "./CopyExportButton";
+import { SubmitButton } from "./SubmitButton";
 import {
   MetricReadout,
   PageShell,
   SectionHeading,
+  Sparkline,
   SystemHeader,
   Tag,
 } from "./ui";
@@ -83,12 +93,14 @@ export default async function PicturePage() {
 
   const now = new Date();
   const asOf = now.toISOString().slice(0, 10);
-  const [lastCheck, openPlans, latestInternal, latestStrategic] = await Promise.all([
-    latestHealthCheck(),
-    db.select().from(plannedEvents),
-    latestSnapshot("internal"),
-    latestStrategicSnapshot(),
-  ]);
+  const [lastCheck, openPlans, latestInternal, latestStrategic, strategicHistory] =
+    await Promise.all([
+      latestHealthCheck(),
+      db.select().from(plannedEvents),
+      latestSnapshot("internal"),
+      latestStrategicSnapshot(),
+      listSnapshots("strategic", 24),
+    ]);
   const snapshot = computeSnapshot({
     snapshotId: createId(),
     asOf,
@@ -96,15 +108,26 @@ export default async function PicturePage() {
     facts: bundle.facts,
   });
   const plans = openPlans.filter((plan) => !plan.realisedAt);
+  const stalePlan = plans.some((plan) => plan.date < asOf);
+  const nwSeries = strategicHistory
+    .map((row) => Number(storedSnapshotResult(row).netWorth.value.totalEUR))
+    .reverse();
   const nw = snapshot.netWorth.value;
   const fire = snapshot.fire.value;
+  const baseHeadroom = fire.bands ? fireHeadroom(fire.bands.base) : null;
+  const conservative = fire.bands?.conservative ?? null;
+  const conservativeHeadroom = conservative ? fireHeadroom(conservative) : null;
   const data = snapshot.dataQuality.value;
   const currentStatus = snapshot.status.value.status;
   const checkReport = lastCheck?.report as {
     headline?: string;
     observations?: string[];
   } | null;
-  const checkVerdict = (lastCheck?.verdict ?? "update") as "ok" | "watch" | "update";
+  const checkVerdict = (lastCheck?.verdict ?? null) as
+    | "ok"
+    | "watch"
+    | "update"
+    | null;
   const checkHeadline = checkReport?.headline ??
     (lastCheck
       ? lastCheck.llmError
@@ -117,9 +140,14 @@ export default async function PicturePage() {
     <PageShell>
       <SystemHeader
         active="picture"
-        title="Financial picture"
+        title="Picture"
         kicker={`CFO / CURRENT POSITION / ${asOf}`}
-        actions={<a href="/api/export" className="button-secondary">Export .md</a>}
+        actions={
+          <>
+            <a href="/api/export" className="button-secondary">Export .md</a>
+            <CopyExportButton />
+          </>
+        }
       />
 
       <div className="status-strip">
@@ -130,9 +158,9 @@ export default async function PicturePage() {
           </div>
         </div>
         <div className="status-cell">
-          <div className="microlabel">CFO check</div>
-          <div className={`status-value ${statusClass(checkVerdict)}`}>
-            {lastCheck ? checkVerdict : "Not run"}
+          <div className="microlabel">Monthly check</div>
+          <div className={`status-value ${checkVerdict ? statusClass(checkVerdict) : ""}`}>
+            {checkVerdict ?? "Not run yet"}
           </div>
         </div>
         <div className="status-cell">
@@ -143,7 +171,7 @@ export default async function PicturePage() {
         </div>
         <div className="status-cell">
           <div className="microlabel">Future plans</div>
-          <div className={`status-value ${plans.length ? "warn" : "ok"}`}>
+          <div className={`status-value ${stalePlan ? "warn" : ""}`}>
             {plans.length ? `${plans.length} open` : "None"}
           </div>
         </div>
@@ -151,31 +179,67 @@ export default async function PicturePage() {
 
       <SectionHeading action={<Tag kind="Calculated" />}>Position</SectionHeading>
       <div className="metrics-grid">
-        <MetricReadout label="Net worth" value={eur(nw.totalEUR)} accent note="Assets less recorded debt" />
+        <MetricReadout
+          label="Net worth"
+          value={eur(nw.totalEUR)}
+          accent
+          note={
+            <>
+              Assets less recorded debt
+              <Sparkline values={nwSeries} />
+            </>
+          }
+        />
         <MetricReadout label="Liquid cash" value={eur(nw.liquidEUR)} note="Bank + manual cash" />
         <MetricReadout label="Investable" value={eur(nw.investableEUR)} note="Broker cash + securities" />
         <MetricReadout label="Property equity" value={eur(nw.illiquidEUR)} note="After recorded mortgages" />
         <MetricReadout label="Pension / locked" value={eur(nw.lockedEUR)} />
-        <MetricReadout label="Other assets" value={eur(nw.otherAssetsEUR)} note="Only those marked included" />
-        <MetricReadout label="Recorded debt" value={eur(nw.debtEUR)} />
+        <MetricReadout label="Other assets" value={eur(nw.otherAssetsEUR)} note="Only those marked included" muted={Number(nw.otherAssetsEUR) === 0} />
+        <MetricReadout label="Recorded debt" value={eur(nw.debtEUR)} muted={Number(nw.debtEUR) === 0} />
         <MetricReadout label="Available to plan" value={eur(nw.fireCountedEUR)} note="Liquid + investable" />
       </div>
 
       <SectionHeading action={<Tag kind="Calculated" />}>Independence plan</SectionHeading>
       <div className="metrics-grid">
         <MetricReadout label="Monthly spending" value={eur(fire.monthlySpendEUR)} note="Planning input" />
-        <MetricReadout label="Safe monthly spending" value={eur(fire.safeMonthlySpendEUR)} />
+        <MetricReadout
+          label="Safe monthly spending"
+          value={eur(fire.safeMonthlySpendEUR)}
+          note={
+            baseHeadroom === null ? (
+              "At the recorded withdrawal rate"
+            ) : Number(baseHeadroom) >= 0 ? (
+              `${eur(baseHeadroom)}/mo inside the safe level`
+            ) : (
+              <span style={{ color: "var(--warn)" }}>
+                {eur(String(Math.abs(Number(baseHeadroom))))}/mo over it
+              </span>
+            )
+          }
+        />
         <MetricReadout label="Zero-growth runway" value={fire.runwayYears == null ? "—" : `${fire.runwayYears.toFixed(1)}y`} />
         <MetricReadout
           label="Conservative band"
-          value={fire.bands?.conservative.holds == null ? "—" : fire.bands.conservative.holds ? "Holds" : "Does not hold"}
-          note="Current position only; open plans are not modeled"
+          textValue
+          value={conservative?.holds == null ? "—" : conservative.holds ? "Holds" : "Does not hold"}
+          note={
+            conservative?.holds === false &&
+            conservativeHeadroom !== null &&
+            conservative.monthlySpendEUR ? (
+              <span style={{ color: "var(--warn)" }}>
+                Misses by {eur(String(Math.abs(Number(conservativeHeadroom))))}/mo at{" "}
+                {eur(conservative.monthlySpendEUR)}/mo spend
+              </span>
+            ) : (
+              "Current position only; open plans are not modeled"
+            )
+          }
         />
       </div>
 
       <section id="check">
-        <SectionHeading action={<Tag kind="Judgment" />}>Periodic CFO check</SectionHeading>
-        <div className={`check-panel mt-2 check-${checkVerdict}`}>
+        <SectionHeading action={<Tag kind="Judgment" />}>Monthly check</SectionHeading>
+        <div className={`check-panel mt-2 ${checkVerdict ? `check-${checkVerdict}` : "check-none"}`}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <div className="microlabel">
@@ -185,8 +249,11 @@ export default async function PicturePage() {
               </div>
               <p className="check-headline">{checkHeadline}</p>
             </div>
-            <form action={checkNow}>
-              <button type="submit" className="button-primary">Check now</button>
+            <form action={checkNow} className="text-right">
+              <SubmitButton className="button-primary" pendingLabel="Checking… takes ~30 s">
+                Check now
+              </SubmitButton>
+              <p className="fine-print mt-1">Runs the check now · ~30 s</p>
             </form>
           </div>
           {(checkReport?.observations?.length ?? 0) > 0 && (
@@ -207,12 +274,12 @@ export default async function PicturePage() {
         <div className="mt-1">
           {plans.map((plan) => (
             <div className="event-row" key={plan.id}>
-              <time>{plan.date}</time>
+              <time>{isTimingUnknown(plan.date) ? "timing unknown" : plan.date}</time>
               <div>
-                <strong>{EVENT_LABEL[plan.type] ?? plan.type}</strong> · {eur(plan.amount)}
+                <strong>{EVENT_LABEL[plan.type] ?? plan.type}</strong> · {isAmountTBD(plan.amount) ? "value TBD" : eur(plan.amount)}
                 {plan.note && <span className="text-[var(--ink-soft)]"> · {plan.note}</span>}
               </div>
-              <Link href="/data#plans" className="button-quiet">Update</Link>
+              <Link href="/data#plans" className="button-quiet">Edit</Link>
             </div>
           ))}
           <p className="fine-print mt-2">Plans are context, not present-day assets. Use the exported brief for decision analysis.</p>

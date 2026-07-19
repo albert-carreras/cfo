@@ -538,3 +538,36 @@ export async function setAssumptionAndRecompute(
     return row;
   });
 }
+
+// Batch sibling of setAssumptionAndRecompute: validate every input, write them
+// all in ONE transaction, and recompute a single snapshot at the end — so
+// "Save inputs" is one dated change, not one per row.
+export async function setAssumptionsAndRecompute(
+  inputs: AssumptionInput[],
+  now = new Date(),
+) {
+  for (const input of inputs) {
+    if (!(EDITABLE_ASSUMPTION_KEYS as readonly string[]).includes(input.key)) {
+      throw new ManageInputError(
+        `assumption key "${input.key}" is not editable here`,
+      );
+    }
+    const range = ASSUMPTION_RANGES[input.key];
+    if (range && input.value != null) {
+      const v = dec(input.value);
+      if (v.lessThanOrEqualTo(range.min) || v.greaterThan(range.max)) {
+        throw new ManageInputError(
+          `${input.key} must be in (${range.min}, ${range.max}]`,
+        );
+      }
+    }
+  }
+  return intentTransaction(async (tx) => {
+    const rows = [];
+    for (const input of inputs) {
+      rows.push(await setAssumption(input, { database: tx, now }));
+    }
+    await recomputeAndPromote(tx, now);
+    return rows;
+  });
+}

@@ -65,8 +65,8 @@ button, input, select, textarea { font: inherit; }
   border-right: 1px solid var(--ink);
   text-decoration: none;
 }
-.system-mark-main { font: 800 0.92rem/1 var(--font-mono); letter-spacing: 0.12em; }
-.system-mark-jp { color: var(--accent); font-size: 0.67rem; font-weight: 800; }
+.system-mark-main { display: inline-flex; align-items: center; font: 800 0.92rem/1 var(--font-mono); letter-spacing: 0.12em; }
+.system-mark-main::after { content: ""; width: 0.36rem; height: 0.36rem; margin-left: 0.34rem; background: var(--accent); }
 
 .top-tabs {
   display: flex;
@@ -172,7 +172,10 @@ button, input, select, textarea { font: inherit; }
 .metric-readout { min-width: 0; min-height: 6.2rem; padding: 0.65rem; border-right: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); background: rgba(255,255,255,.72); }
 .metric-readout.accent { border-top: 3px solid var(--accent); padding-top: calc(.65rem - 2px); }
 .metric-value { margin-top: 0.45rem; font: 750 clamp(1.25rem, 3.1vw, 2.05rem)/1 var(--font-mono); letter-spacing: -0.05em; overflow-wrap: anywhere; }
+.metric-value-text { font-size: 1.1rem; letter-spacing: 0; }
+.metric-readout.muted .metric-value { color: var(--ink-faint); }
 .metric-note { margin-top: 0.45rem; color: var(--ink-soft); font-size: 0.69rem; line-height: 1.35; }
+.metric-note .spark { display: block; width: 100%; height: 1.75rem; margin-top: 0.4rem; color: var(--ink); }
 
 .section-heading, .sec-head {
   display: flex;
@@ -195,6 +198,7 @@ button, input, select, textarea { font: inherit; }
 .data-table td { padding: 0.5rem 0.55rem; border-top: 1px solid var(--hairline); vertical-align: top; }
 .data-table tbody tr:first-child td { border-top: 0; }
 .data-table .num { font-family: var(--font-mono); text-align: right; white-space: nowrap; }
+.data-table th.num { text-align: right; }
 
 .button-primary, .button-secondary, .button-quiet {
   display: inline-flex;
@@ -221,6 +225,9 @@ button, input, select, textarea { font: inherit; }
 .field { display: grid; align-content: start; gap: 0.3rem; }
 .field-label { color: var(--ink-soft); font-size: 0.55rem; font-weight: 750; letter-spacing: 0.13em; text-transform: uppercase; }
 .field-help { color: var(--ink-faint); font-size: 0.67rem; line-height: 1.35; }
+.input-label { font-size: 0.8rem; font-weight: 700; }
+.input-desc { margin-top: 0.15rem; color: var(--ink-soft); font-size: 0.68rem; line-height: 1.35; }
+.input-key { margin-top: 0.25rem; }
 .control {
   width: 100%;
   min-height: 2.35rem;
@@ -246,12 +253,15 @@ textarea.control { min-height: 5rem; resize: vertical; }
 .notice-green { border-left-color: var(--ok); }
 
 .brand-logo { font: 800 2.4rem/1 var(--font-mono); letter-spacing: -0.08em; text-decoration: none; }
-.brand-logo span { margin-left: 0.35rem; color: var(--accent); font-size: 0.7rem; letter-spacing: 0; }
 .brand-logo.compact { font-size: 1.5rem; }
 .back-link { color: var(--ink-soft); font-size: .62rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
 
 .check-panel { position: relative; padding: 0.75rem 0.85rem 0.8rem 1rem; border: 1px solid var(--hairline); background: #fff; }
 .check-panel::before { content: ""; position: absolute; left: -1px; top: -1px; width: .28rem; height: calc(100% + 2px); background: var(--accent); }
+.check-panel.check-ok::before { background: var(--ok); }
+.check-panel.check-watch::before { background: var(--warn); }
+.check-panel.check-update::before { background: var(--bad); }
+.check-panel.check-none::before { background: var(--ink); }
 .check-headline { margin: 0.35rem 0 0; font-size: 1rem; font-weight: 760; line-height: 1.3; }
 .check-list { margin: 0.55rem 0 0; padding: 0; list-style: none; color: var(--ink-soft); }
 .check-list li { padding: 0.25rem 0; border-top: 1px solid var(--hairline); }
@@ -271,7 +281,6 @@ textarea.control { min-height: 5rem; resize: vertical; }
 @media (max-width: 460px) {
   .app-shell, .app-shell-narrow { width: min(100% - 1rem, 68rem); padding-top: .45rem; }
   .system-mark { padding-right: .45rem; }
-  .system-mark-jp { display: none; }
   .top-tab { padding-inline: .5rem; }
   .top-tab span { display: none; }
   .system-heading { padding-top: .85rem; }

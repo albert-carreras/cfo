@@ -174,7 +174,7 @@ export async function runHealthCheck(options: {
     .returning();
 
   await sendNotification({
-    title: verdict === "ok" ? "CFO check: okay" : "CFO check: worth a look",
+    title: verdict === "ok" ? "CFO monthly check: okay" : "CFO monthly check: worth a look",
     message:
       report?.headline ??
       (verdict === "update"

@@ -9,12 +9,13 @@ import {
   addOtherAsset,
   addProperty,
   recordDataSnapshot,
-  setAssumptionAndRecompute,
+  setAssumptionsAndRecompute,
 } from "@/server/manage";
 import {
   completePlannedEvent,
   createPlannedEvent,
 } from "@/server/plannedEvents";
+import { PLANNING_INPUT_KEYS } from "@/shared/assumptionKeys";
 
 function text(form: FormData, key: string) {
   return String(form.get(key) ?? "").trim();
@@ -117,15 +118,24 @@ export async function createLoan(formData: FormData) {
   done("#structure");
 }
 
-export async function savePlanningInput(formData: FormData) {
-  const key = text(formData, "key");
-  const value = text(formData, "value");
-  await setAssumptionAndRecompute({
-    key,
-    value: key === "birthDate" ? null : value,
-    dateValue: key === "birthDate" ? value : null,
-    source: "user (data workspace)",
+export async function savePlanningInputs(formData: FormData) {
+  // One save, one dated change: collect only the rows the user actually
+  // changed (value differs from the submitted current value), then write them
+  // in a single transaction with one recompute.
+  const inputs = PLANNING_INPUT_KEYS.flatMap((key) => {
+    const value = text(formData, `value-${key}`);
+    const current = text(formData, `current-${key}`);
+    if (value === "" || value === current) return [];
+    return [
+      {
+        key,
+        value: key === "birthDate" ? null : value,
+        dateValue: key === "birthDate" ? value : null,
+        source: "user (data workspace)",
+      },
+    ];
   });
+  if (inputs.length > 0) await setAssumptionsAndRecompute(inputs);
   done("#inputs");
 }
 

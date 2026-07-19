@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { sparklinePoints } from "@/shared/sparkline";
 
 function classes(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
@@ -22,7 +23,6 @@ export function TopBar({
     <header className="topbar">
       <Link href="/" className="system-mark" aria-label="CFO home">
         <span className="system-mark-main">CFO</span>
-        <span className="system-mark-jp">財務</span>
       </Link>
       <nav className="top-tabs" aria-label="Primary">
         {NAV.map((item) => {
@@ -90,7 +90,7 @@ export function PageShell({
 export function BrandLogo({ compact = false }: { compact?: boolean; priority?: boolean }) {
   return (
     <Link href="/" className={classes("brand-logo", compact && "compact")}>
-      CFO<span>財務</span>
+      CFO
     </Link>
   );
 }
@@ -125,17 +125,58 @@ export function MetricReadout({
   value,
   note,
   accent = false,
+  textValue = false,
+  muted = false,
 }: {
   label: string;
   value: ReactNode;
   note?: ReactNode;
   accent?: boolean;
+  // Render the value as words, not money — smaller type for readouts like
+  // "Holds" / "Does not hold" so they don't shout at figure size.
+  textValue?: boolean;
+  // Dim the value for a non-informative zero (no other assets, no debt).
+  muted?: boolean;
 }) {
   return (
-    <div className={classes("metric-readout", accent && "accent")}>
+    <div className={classes("metric-readout", accent && "accent", muted && "muted")}>
       <div className="microlabel">{label}</div>
-      <div className="metric-value">{value}</div>
+      <div className={classes("metric-value", textValue && "metric-value-text")}>{value}</div>
       {note && <div className="metric-note">{note}</div>}
     </div>
+  );
+}
+
+// Hairline net-worth sparkline — no axes, no labels; the piso-radar `.spark`
+// idiom. Server-rendered inline SVG. Renders nothing until there are at least
+// two points to connect.
+export function Sparkline({
+  values,
+  width = 120,
+  height = 28,
+}: {
+  values: number[];
+  width?: number;
+  height?: number;
+}) {
+  const points = sparklinePoints(values, { width, height });
+  if (!points) return null;
+  return (
+    <svg
+      className="spark"
+      width={width}
+      height={height}
+      viewBox={`0 0 ${width} ${height}`}
+      preserveAspectRatio="none"
+      aria-hidden="true"
+    >
+      <polyline
+        points={points}
+        fill="none"
+        stroke="var(--ink)"
+        strokeWidth="1"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
   );
 }

@@ -38,6 +38,16 @@ export type FireBand = {
   holds: boolean | null;
 };
 
+// The band's monthly headroom: safe draw minus spend. Positive = spend fits
+// inside the safe level with room; negative = spend is over it. Null when
+// either side is missing (never a reassuring zero). Pure.
+export function fireHeadroom(band: FireBand): Money | null {
+  if (band.safeMonthlySpendEUR === null || band.monthlySpendEUR === null) {
+    return null;
+  }
+  return dec(band.safeMonthlySpendEUR).minus(band.monthlySpendEUR).toFixed(2);
+}
+
 // The base plan's explicit failure modes — the smallest single move that
 // breaks "spend fits the safe draw". Negative spendRisePct / assetDropPct
 // mean the base plan is ALREADY broken (spend above the safe draw); they are

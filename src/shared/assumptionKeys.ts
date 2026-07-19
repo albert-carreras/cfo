@@ -19,6 +19,31 @@ export const EDITABLE_ASSUMPTION_KEYS = [
 // takes the row back.
 export const FEED_ASSUMPTION_KEYS = ["inflation", "interestRate"] as const;
 
+// The keys a person actually edits in the Data workspace: every editable key
+// except the two the ECB feed owns (those render read-only). Used by the
+// one-save planning-inputs form and its batch action.
+export const PLANNING_INPUT_KEYS = EDITABLE_ASSUMPTION_KEYS.filter(
+  (key) => !(FEED_ASSUMPTION_KEYS as readonly string[]).includes(key),
+);
+
+// Short human labels shown ahead of the raw camelCase key on the Data page.
+export const ASSUMPTION_LABELS: Record<
+  (typeof EDITABLE_ASSUMPTION_KEYS)[number],
+  string
+> = {
+  monthlySpend: "Monthly spending",
+  monthlySpendConservative: "Monthly spending — conservative",
+  monthlySpendOptimistic: "Monthly spending — optimistic",
+  monthlyNetIncome: "Monthly net income",
+  monthlyHousingCost: "Monthly housing cost",
+  safeWithdrawalRate: "Safe withdrawal rate",
+  expectedReturn: "Expected annual return",
+  longRunInflation: "Long-run inflation",
+  inflation: "Observed inflation (ECB)",
+  interestRate: "Risk-free rate (ECB)",
+  birthDate: "Date of birth",
+};
+
 // One plain sentence per key, shown under the key on /manage — what the number
 // is and which calculator (if any) consumes it today.
 export const ASSUMPTION_DESCRIPTIONS: Record<

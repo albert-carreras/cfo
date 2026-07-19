@@ -1,6 +1,6 @@
 # AI check and decision handoff
 
-## Monthly CFO check
+## Monthly check
 
 The AI has one narrow job: periodically read a deterministic summary and say whether the current
 position looks broadly okay, worth watching, or needs fresher data.
