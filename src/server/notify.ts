@@ -129,30 +129,6 @@ export function decideDailyNotifications(args: {
   return out;
 }
 
-export function reviewNotification(args: {
-  month: string;
-  scope: "full" | "deterministic";
-  llmError: string | null;
-  hasRecommendation: boolean;
-  requiresManualReview: boolean;
-}): Notification {
-  const rec = args.hasRecommendation
-    ? args.requiresManualReview
-      ? "1 recommendation (needs manual review)"
-      : "1 recommendation"
-    : "no recommendation";
-  const scope =
-    args.scope === "full"
-      ? "full scope"
-      : `deterministic floor (${args.llmError ?? "no provider"})`;
-  return {
-    title: `CFO: ${args.month} review published`,
-    message: `${scope} — ${rec}. Read it on /reviews.`,
-    priority: "default",
-    tags: ["memo"],
-  };
-}
-
 export function failureNotification(error: string): Notification {
   return {
     title: "CFO: daily update FAILED",

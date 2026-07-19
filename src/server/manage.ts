@@ -4,9 +4,12 @@ import { dec, type Money } from "@/calc/money";
 import { deriveState } from "@/calc/derive";
 import {
   accounts,
+  dataUpdates,
   holdings,
   liabilities,
+  otherAssets,
   properties,
+  revaluations,
   taxLots,
 } from "./db/schema";
 import { loadFacts } from "./facts";
@@ -189,6 +192,7 @@ export async function addPropertyTx(
   if (value.mortgage) {
     await tx.insert(liabilities).values({
       type: "mortgage" as const,
+      name: `Mortgage · ${value.name}`,
       propertyId: row.id,
       rate: value.mortgage.rate ?? null,
       balance: value.mortgage.balance,
@@ -196,6 +200,134 @@ export async function addPropertyTx(
     });
   }
   return row;
+}
+
+// --- Snapshot-style updates -----------------------------------------------
+
+const observationSchema = z.object({
+  assetType: z.enum([
+    "account",
+    "holding",
+    "property",
+    "liability",
+    "other_asset",
+  ]),
+  assetId: z.string().min(1),
+  value: nonNegativeDecimalString,
+});
+
+export const dataSnapshotInputSchema = z.object({
+  asOf: isoDate,
+  note: z.string().trim().max(500).nullish(),
+  observations: z.array(observationSchema).min(1),
+});
+
+export async function recordDataSnapshot(input: unknown, now = new Date()) {
+  const value = dataSnapshotInputSchema.parse(input);
+  if (value.asOf > utcDate(now)) {
+    throw new ManageInputError("snapshot date cannot be in the future");
+  }
+  const unique = new Set(
+    value.observations.map((row) => `${row.assetType}:${row.assetId}`),
+  );
+  if (unique.size !== value.observations.length) {
+    throw new ManageInputError("each item may appear only once in an update");
+  }
+
+  return intentTransaction(async (tx) => {
+    const [accountRows, holdingRows, propertyRows, liabilityRows, otherRows] =
+      await Promise.all([
+        tx.select().from(accounts),
+        tx.select().from(holdings),
+        tx.select().from(properties),
+        tx.select().from(liabilities),
+        tx.select().from(otherAssets),
+      ]);
+    const liveIds: Record<(typeof value.observations)[number]["assetType"], Set<string>> = {
+      account: new Set(accountRows.filter((row) => !row.disposedAt).map((row) => row.id)),
+      holding: new Set(holdingRows.filter((row) => !row.disposedAt).map((row) => row.id)),
+      property: new Set(propertyRows.filter((row) => !row.disposedAt).map((row) => row.id)),
+      liability: new Set(liabilityRows.filter((row) => !row.disposedAt).map((row) => row.id)),
+      other_asset: new Set(otherRows.filter((row) => !row.disposedAt).map((row) => row.id)),
+    };
+    for (const observation of value.observations) {
+      if (!liveIds[observation.assetType].has(observation.assetId)) {
+        throw new ManageInputError(
+          `${observation.assetType} does not exist or is closed`,
+        );
+      }
+    }
+
+    const rows = await tx
+      .insert(revaluations)
+      .values(
+        value.observations.map((observation) => ({
+          assetType: observation.assetType,
+          assetId: observation.assetId,
+          value: observation.value,
+          valuedAt: value.asOf,
+          note: value.note ?? null,
+        })),
+      )
+      .returning();
+    const snapshot = await recomputeAndPromote(tx, now);
+    const [update] = await tx
+      .insert(dataUpdates)
+      .values({
+        asOf: value.asOf,
+        note: value.note ?? null,
+        changes: value.observations,
+        snapshotId: snapshot.snapshotId,
+      })
+      .returning();
+    return { update, rows, snapshot };
+  });
+}
+
+export const addOtherAssetSchema = z.object({
+  name: z.string().trim().min(1),
+  category: z.string().trim().min(1).default("other"),
+  value: nonNegativeDecimalString,
+  includeInNetWorth: z.boolean().default(false),
+  valuedAt: isoDate,
+  note: z.string().trim().max(500).nullish(),
+});
+
+export async function addOtherAsset(input: unknown, now = new Date()) {
+  const value = addOtherAssetSchema.parse(input);
+  if (value.valuedAt > utcDate(now)) {
+    throw new ManageInputError("asset valuation date cannot be in the future");
+  }
+  return intentTransaction(async (tx) => {
+    const [row] = await tx.insert(otherAssets).values(value).returning();
+    await recomputeAndPromote(tx, now);
+    return row;
+  });
+}
+
+export const addLoanSchema = z.object({
+  name: z.string().trim().min(1),
+  balance: nonNegativeDecimalString,
+  rate: nonNegativeDecimalString.nullish(),
+  payment: nonNegativeDecimalString.nullish(),
+});
+
+export async function addLoan(input: unknown, now = new Date()) {
+  const value = addLoanSchema.parse(input);
+  return intentTransaction(async (tx) => {
+    const [row] = await tx
+      .insert(liabilities)
+      .values({
+        type: "loan",
+        name: value.name,
+        balance: value.balance,
+        rate: value.rate ?? null,
+        payment: value.payment ?? null,
+      })
+      .returning();
+    await recomputeAndPromote(tx, now);
+    return row;
+  });
 }
 
 export async function addProperty(input: unknown, now = new Date()) {

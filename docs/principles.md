@@ -1,88 +1,54 @@
-# Principles — the non-negotiables
+# Principles
 
-These are load-bearing. Everything else is implementation detail.
+## 1. A reliable record beats another financial chatbot
 
-## 1. The anxiety firewall governs presentation, not engine depth
-The brain can be deep and complex. The *surface* is what stays calm. You don't need a dumb app
-— you need a deep app that doesn't constantly poke you. The firewall lives in the UI and the
-status engine, never in the calculators.
+General AI products are already the best place for open-ended decisions. CFO earns its place by
+maintaining the compact, dated, trustworthy context those conversations otherwise lack.
 
-## 2. Three kinds of information — always labelled distinctly
-Never blur these in the UI. Each is a different epistemic category:
+## 2. Three epistemic categories stay separate
 
-- **Verified** — a fact you entered or imported. *"I own 2,752 VWCE shares."*
-- **Calculated** — a deterministic output. *"VWCE value = quantity × price."*
-- **Judgment** — an opinion (LLM or rule-of-thumb). *"Tech exposure is high but acceptable."*
+- **Verified** — a value entered, confirmed or imported.
+- **Calculated** — a deterministic result derived from verified facts.
+- **Judgment** — a qualitative interpretation from the model or a rule of thumb.
 
-The UI labels them differently (e.g. a small `Verified` / `Calculated` / `Judgment` tag on
-every figure or statement). This separation is the spine of the whole product.
+Labels are not decoration. Never present Judgment as a computed fact or a model-written number as
+personal evidence.
 
-## 3. Calculators compute; the LLM never originates a number about you
-Every figure the app shows about *you* comes from a deterministic calculator output, which in
-turn comes from a Verified fact. The LLM explains, compares and advises — it does not invent
-your numbers.
+## 3. Current position, future plans and data readiness are different signals
 
-## 4. Provenance everywhere
-Every figure links back to the fact / movement / price that produced it, with a date. The
-append-only ledger and the git history of facts are the audit log.
+“The current position is okay” does not mean “the planned house is affordable.” An open plan is
+context only. The Picture names all three states separately.
 
-## 5. Pull before proactive
-The analyst answers **when asked**. It may say *"this deserves a review."* It does **not** push
-market opinions at you. A background "AI researches and pings you" is exactly the
-pseudo-financial noise this app exists to remove — e.g. *"Action recommended: semiconductor
-valuations appear stretched."* That is banned until very late, and even then only inside a
-**scheduled** review, never as a real-time alert.
+## 4. Coarse maintenance is a feature
 
-## 6. Manual-review lock on irreversible actions
-The app is **not allowed to sound certain** about scary, hard-to-reverse decisions. These
-require explicit manual review before they can ever become an "action":
+The record needs material accuracy, not a perfect transaction diary. Market prices update
+automatically. A human confirms balances and quantities occasionally or after a major event. Small
+cash drift should not turn the product into bookkeeping.
 
-- sell a property
-- quit the job
-- sell a large ETF position (e.g. > €100k)
-- pension withdrawal
+## 5. Observations are dated and append-only
 
-For these, the strongest the app may say is:
-*"This recommendation requires manual review before becoming an action."*
+A batch confirmation adds a new observation; it does not erase the previous one. Current state is
+the latest observation plus any retained ledger activity after it. Facts are soft-closed.
 
-## 7. Two different "we're not sure" signals
-Keep these separate:
+## 6. Calculators compute; the model checks
 
-- **Data quality** — do we have enough, fresh inputs? *"Data quality: Good. Missing: May
-  spending, latest pension value."*
-- **FIRE confidence** — given the inputs, is the plan sound?
+Net worth, asset buckets, runway, safe spending, freshness and concentration are pure, versioned
+calculators. The monthly model receives a summary only, uses no tools or web, writes no digits and
+may only strengthen the deterministic warning level.
 
-Sometimes the right status is not "danger" — it's *"we don't know enough."* Don't collapse the
-two.
+## 7. Silence should mean something
 
-## 8. Calm surface, deep brain
-Home shows: status · next strategic snapshot · data freshness. Freshness names both dates the
-strategic **Snapshot** (frozen between monthly / material-change promotions) and the daily
-**Computed** date (the newest internal snapshot, advancing every day the feed runs) so a calm,
-deliberately-stable promotion date never reads as a broken feed. Full net worth, allocation and
-in-depth reports are **one tap away** — never blocked, never shoved at you.
+The daily feed stays underneath the surface. The scheduled check runs monthly. Notifications are
+coarse. There is no market commentary, regulatory watch, ticker tape or engagement loop.
 
-## 9. "Data stale" is a first-class status
-Alongside Stable / Review soon / Action recommended / Urgent. Honest staleness beats false
-calm.
+## 8. The handoff must be honest
 
-## 10. Tax numbers are planning estimates — show the source, not a disclaimer
-Don't editorialise ("I'm not your gestor"). State it factually:
-*"Tax estimates are planning estimates. Source / version shown."* Then show the tax-table
-version that produced the number.
+The Markdown pack carries values, source dates, assumptions, plans and missing decision-critical
+facts. It tells the receiving AI not to silently assume income, financing, tax treatment or sale
+proceeds.
 
-## 11. The confidence score moves slowly
-A market crash should nudge it (e.g. 91 → 86), not crater it. Smoothed, not reactive.
+## 9. The interface is a personal system, not fintech theater
 
-## 12. Coarse by design — the surface thinks in years and percent, not euros
-Spend is a coarse planning **assumption** reviewed yearly, not a hand-logged monthly figure; the
-calm surface rounds to ~€1k (net worth to three significant figures) and presents runway in
-years. A ±€1,000/month imprecision must not matter anywhere the user normally looks — if it does,
-the design is wrong, not the rounding. Full precision lives on in the calculators and the
-provenance depth; only the presentation coarsens. Corollary: a quiet ledger is a feature — the
-app must never nag for precision it doesn't use.
-
-## 13. The AI provider is an implementation detail
-The model lives behind an interface (`src/ai/*`). The product is not "a GPT-5.5 app" or "a
-Claude app" — the deterministic core is provider-agnostic and the voice is swappable. Don't
-bake a provider name into the product design.
+Use the piso-radar visual language: Japanese early-2000s technical print, compact information
+architecture, tabular numerals, squared controls and restrained vermillion. Avoid glossy cards,
+gradients, motivational copy and decorative noise.

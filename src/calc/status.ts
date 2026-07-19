@@ -65,12 +65,9 @@ export function status(args: {
   let level: StatusLevel;
   let reason: string;
 
-  if (dataQuality.score === "Poor" || dataQuality.missingRequired.length > 0) {
+  if (dataQuality.missingRequired.length > 0) {
     level = "data_stale";
-    reason =
-      dataQuality.missingRequired.length > 0
-        ? `Required input(s) past cadence: ${dataQuality.missingRequired.join(", ")}.`
-        : "Data quality is Poor — not enough fresh inputs to compute a confident status.";
+    reason = `Required input(s) past cadence: ${dataQuality.missingRequired.join(", ")}.`;
   } else if (runwayMonths !== null && runwayMonths < t.urgentRunwayMonths) {
     level = "urgent";
     reason = `Runway is ${runwayMonths} months — below the ${t.urgentRunwayMonths}-month floor.`;

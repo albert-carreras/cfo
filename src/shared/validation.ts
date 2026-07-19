@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { dec } from "@/calc/money";
 
-// Client-importable Zod primitives shared by every input surface (quick-log,
+// Client-importable Zod primitives shared by input surfaces (setup, Data,
 // setup, manage). Server modules compose these; forms may reuse them for
 // inline validation. No server imports allowed here.
 

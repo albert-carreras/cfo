@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "CFO",
-  description: "A calm personal financial brain.",
+  description: "A trusted current financial record and periodic CFO check.",
   icons: {
     icon: [
       { url: "/favicon.ico" },

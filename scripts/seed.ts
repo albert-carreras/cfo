@@ -14,15 +14,23 @@ import { computeSnapshot } from "../src/calc/snapshot";
 import {
   accounts,
   assumptions,
+  checks,
+  dataUpdates,
+  decisions,
   fxRates,
   holdings,
+  healthChecks,
   liabilities,
   marketPrices,
   monthlySpend,
   movements,
+  otherAssets,
+  pictures,
   plannedEvents,
   properties,
   revaluations,
+  reviews,
+  settings,
   snapshots,
   taxLots,
 } from "../src/server/db/schema";
@@ -77,6 +85,13 @@ async function main() {
     // destructive reset path, scoped to this transaction.
     await tx.execute(sql`select set_config('cfo.allow_ledger_reset', 'on', true)`);
 
+    await tx.delete(healthChecks);
+    await tx.delete(dataUpdates);
+    await tx.delete(reviews);
+    await tx.delete(pictures);
+    await tx.delete(decisions);
+    await tx.delete(checks);
+    await tx.delete(settings);
     await tx.delete(snapshots);
     await tx.delete(revaluations);
     await tx.delete(monthlySpend);
@@ -86,6 +101,7 @@ async function main() {
     await tx.delete(plannedEvents);
     await tx.delete(taxLots);
     await tx.delete(liabilities);
+    await tx.delete(otherAssets);
     await tx.delete(holdings);
     await tx.delete(assumptions);
     await tx.delete(properties);

@@ -12,32 +12,15 @@ import {
   type FreshnessInput,
   type SoftFlag,
 } from "./dataQuality";
-import { spendCalibration } from "./spendCalibration";
 import { status, type StatusValue } from "./status";
-import {
-  taxES,
-  rentalIncome,
-  realizedCapitalGains,
-  lossCarryForward,
-  type TaxESValue,
-} from "./taxES";
-import { selectTaxConfigs } from "./config/taxRegistry";
 import { concentration, type ConcentrationValue } from "./concentration";
-import {
-  recommendationTriggers,
-  type RecommendationTriggersValue,
-  type UnrealizedPosition,
-} from "./recommendationTriggers";
-import { propertyYield, type PropertyYieldValue } from "./propertyYield";
-import { standardScenarios, type ScenarioValue } from "./scenario";
 import type { CalcResult } from "./types";
-import { dec, sum, type Money } from "./money";
-import { effectiveMovements } from "./movements";
+import { dec, type Money } from "./money";
 
-// Assembles ONE strategic snapshot: derive current state, then run every core
-// calculator over it. Pure — `snapshotId`, `asOf` and `reviewDue` are passed in,
-// so the same facts always produce the same snapshot. The home page and the
-// exit-criterion test both call this.
+// The deliberately small trust core. It describes the current position; future
+// decisions belong in the exported context pack, not in an in-app scenario
+// engine. Legacy movements still replay so existing data remains valid, while
+// dated observations can re-anchor account balances and holding quantities.
 
 export type SnapshotFacts = {
   accounts: {
@@ -45,7 +28,6 @@ export type SnapshotFacts = {
     type: AccountType;
     openingCash: Money;
     openingAsOf: string;
-    // Optional display name — used only in human-readable flag labels.
     name?: string;
   }[];
   holdings: {
@@ -58,9 +40,6 @@ export type SnapshotFacts = {
   accountOpeningAsOf?: Record<string, string>;
   holdingOpeningAsOf?: Record<string, string>;
   movements: DeriveMovement[];
-  // Dated value statements — re-anchor an account's derivation:
-  // value = latest revaluation + movements since its date. Optional: absent ⇒
-  // every account derives from its opening baseline.
   revaluations?: DeriveRevaluation[];
   properties: {
     id: string;
@@ -70,16 +49,29 @@ export type SnapshotFacts = {
     rentMonthly: Money;
     costsMonthly: Money;
     isPrimaryResidence: boolean;
-    // Optional purchase basis — the sell-property scenario's CG
-    // input; absent ⇒ the scenario states the tax as unknown, never 0.
     purchasePrice?: Money | null;
+    inputId?: string;
   }[];
-  liabilities: { id: string; propertyId: string | null; balance: Money }[];
+  otherAssets?: {
+    id: string;
+    value: Money;
+    includeInNetWorth: boolean;
+    valuedAt: string;
+    inputId?: string;
+  }[];
+  liabilities: {
+    id: string;
+    propertyId: string | null;
+    balance: Money;
+    valuedAt?: string;
+    inputId?: string;
+  }[];
   assumptions: { id: string; key: string; value: Money; lastReviewedAt: string }[];
   prices: { id: string; isin: string; price: Money; currency: string; asOf: string }[];
   fx: { id: string; quote: string; rate: Money; asOf: string }[];
+  // Retained as source data for exports and compatibility; the current-state
+  // trust core does not require either history.
   monthlySpend: { id: string; month: string; amount: Money; createdAt: string }[];
-  // Open tax lots (FIFO basis). Optional: absent ⇒ no realized-gain basis.
   taxLots?: {
     id: string;
     holdingId: string;
@@ -87,16 +79,14 @@ export type SnapshotFacts = {
     quantity: Money;
     costBasisEUR: Money;
   }[];
-  // Forecasts, not facts: consumed ONLY by the scenario engine —
-  // the base-case calculators never see them (netWorth's rule).
   plannedEvents?: {
     id: string;
     type: string;
     date: string;
-    amount: Money; // a magnitude — the event TYPE owns the direction (2026.6)
+    amount: Money;
     probability: Money;
     includedInBaseCase: boolean;
-    realisedAt?: string | null; // absent = not yet realised
+    realisedAt?: string | null;
   }[];
 };
 
@@ -108,19 +98,25 @@ export type StrategicSnapshot = {
   fire: CalcResult<FireValue>;
   dataQuality: CalcResult<DataQualityValue>;
   status: CalcResult<StatusValue>;
-  taxES: CalcResult<TaxESValue>;
-  // Optional only because legacy STORED snapshots lack them;
-  // computeSnapshot always fills them (scenarios only at the top level — the
-  // counterfactual variants inside the engine don't nest their own).
-  concentration?: CalcResult<ConcentrationValue>;
-  recommendationTriggers?: CalcResult<RecommendationTriggersValue>;
-  scenarios?: CalcResult<ScenarioValue>[];
-  // propertyYield.v1 — optional only because earlier STORED snapshots lack it.
-  propertyYield?: CalcResult<PropertyYieldValue>;
+  concentration: CalcResult<ConcentrationValue>;
 };
 
 function minDate(dates: string[]): string | null {
   return dates.length === 0 ? null : dates.reduce((a, b) => (a < b ? a : b));
+}
+
+function latestObservationDate(
+  rows: DeriveRevaluation[],
+  key: "accountId" | "holdingId",
+  id: string,
+  fallback: string,
+  asOf: string,
+): string {
+  return rows
+    .filter((row) => row[key] === id && row.valuedAt <= asOf)
+    .map((row) => row.valuedAt)
+    .sort()
+    .at(-1) ?? fallback;
 }
 
 export function computeSnapshot(args: {
@@ -128,76 +124,73 @@ export function computeSnapshot(args: {
   asOf: string;
   reviewDue: boolean;
   facts: SnapshotFacts;
-  // Scenario variants recompute the snapshot WITHOUT their own
-  // scenario set (no nesting). Display names ride along for scenario labels.
-  withScenarios?: boolean;
+  // Kept in the public call shape while old callers are migrated; names are
+  // presentation data and no longer feed counterfactual calculators.
   propertyNameById?: Record<string, string>;
   holdingNameById?: Record<string, string>;
+  withScenarios?: boolean;
 }): StrategicSnapshot {
-  const { snapshotId, asOf, reviewDue, facts, withScenarios = true } = args;
+  const { snapshotId, asOf, reviewDue, facts } = args;
+  const observations = facts.revaluations ?? [];
 
   const derived = deriveState({
-    accounts: facts.accounts.map((a) => ({
-      id: a.id,
-      openingCash: a.openingCash,
-      openingAsOf: a.openingAsOf,
+    accounts: facts.accounts.map((account) => ({
+      id: account.id,
+      openingCash: account.openingCash,
+      openingAsOf: account.openingAsOf,
     })),
-    holdings: facts.holdings.map((h) => ({
-      id: h.id,
-      accountId: h.accountId,
-      openingQuantity: h.openingQuantity,
-      openingAsOf: h.openingAsOf,
+    holdings: facts.holdings.map((holding) => ({
+      id: holding.id,
+      accountId: holding.accountId,
+      openingQuantity: holding.openingQuantity,
+      openingAsOf: holding.openingAsOf,
     })),
     movements: facts.movements,
-    revaluations: facts.revaluations,
+    revaluations: observations,
     asOf,
   });
 
   const val = valuation({
     snapshotId,
     asOf,
-    holdings: facts.holdings.map((h) => ({ id: h.id, isin: h.isin })),
+    holdings: facts.holdings.map((holding) => ({
+      id: holding.id,
+      isin: holding.isin,
+    })),
     quantityByHolding: derived.quantityByHolding,
     quantityInputsByHolding: derived.quantityInputsByHolding,
     prices: facts.prices,
     fx: facts.fx,
   });
 
-  const accountByHolding = new Map(facts.holdings.map((h) => [h.id, h.accountId]));
+  const accountByHolding = new Map(
+    facts.holdings.map((holding) => [holding.id, holding.accountId]),
+  );
   const nw = netWorth({
     snapshotId,
-    accounts: facts.accounts.map((a) => ({ id: a.id, type: a.type })),
+    accounts: facts.accounts.map((account) => ({
+      id: account.id,
+      type: account.type,
+    })),
     cashByAccount: derived.cashByAccount,
     cashInputsByAccount: derived.cashInputsByAccount,
-    holdingValues: val.value.holdings.map((h) => ({
-      holdingId: h.holdingId,
-      accountId: accountByHolding.get(h.holdingId) ?? "",
-      valueEUR: h.valueEUR,
-      inputs: h.inputs,
+    holdingValues: val.value.holdings.map((holding) => ({
+      holdingId: holding.holdingId,
+      accountId: accountByHolding.get(holding.holdingId) ?? "",
+      valueEUR: holding.valueEUR,
+      inputs: holding.inputs,
     })),
-    properties: facts.properties.map((p) => ({
-      id: p.id,
-      value: p.value,
-      ownershipPct: p.ownershipPct,
-    })),
-    liabilities: facts.liabilities.map((l) => ({
-      id: l.id,
-      propertyId: l.propertyId,
-      balance: l.balance,
-    })),
+    properties: facts.properties,
+    liabilities: facts.liabilities,
+    otherAssets: facts.otherAssets,
   });
 
-  // Spend is the coarse ASSUMPTION — entered like the SWR, reviewed
-  // yearly. The monthly-spend log only calibrates it (a soft flag below).
   const byKey = (key: string) =>
     facts.assumptions.find((assumption) => assumption.key === key);
-  const spendAssumption = byKey("monthlySpend");
+  const spend = byKey("monthlySpend");
   const spendConservative = byKey("monthlySpendConservative");
   const spendOptimistic = byKey("monthlySpendOptimistic");
   const swr = byKey("safeWithdrawalRate");
-  // The real-view pair (fire.v2): the NOMINAL expectedReturn and the
-  // longRunInflation FORECAST (the ECB-fed `inflation` row is an observation
-  // and deliberately not consumed here).
   const expectedReturn = byKey("expectedReturn");
   const longRunInflation = byKey("longRunInflation");
 
@@ -206,7 +199,7 @@ export function computeSnapshot(args: {
     liquidEUR: nw.value.liquidEUR,
     investableEUR: nw.value.investableEUR,
     fireCountedEUR: nw.value.fireCountedEUR,
-    monthlySpendEUR: spendAssumption?.value ?? null,
+    monthlySpendEUR: spend?.value ?? null,
     monthlySpendConservativeEUR: spendConservative?.value ?? null,
     monthlySpendOptimisticEUR: spendOptimistic?.value ?? null,
     safeWithdrawalRate: swr?.value ?? null,
@@ -215,356 +208,180 @@ export function computeSnapshot(args: {
     inputs: [
       ...nw.inputs,
       ...[
-        spendAssumption?.id,
+        spend?.id,
         spendConservative?.id,
         spendOptimistic?.id,
         swr?.id,
         expectedReturn?.id,
         longRunInflation?.id,
-      ].filter((x): x is string => Boolean(x)),
+      ].filter((id): id is string => Boolean(id)),
     ],
   });
 
-  // A quiet ledger can no longer flip the home to Data stale: the spend input
-  // is the assumption on its ANNUAL review cadence, not a required monthly log.
   const freshness: FreshnessInput[] = [
     {
-      id: spendAssumption?.id ?? "monthly-spend-assumption",
-      sourceIds: spendAssumption ? [spendAssumption.id] : undefined,
+      id: spend?.id ?? "monthly-spend-assumption",
+      sourceIds: spend ? [spend.id] : undefined,
       label: "Monthly spend assumption",
-      lastUpdated: spendAssumption?.lastReviewedAt ?? null,
+      lastUpdated: spend?.lastReviewedAt ?? null,
+      cadence: "annually",
+      required: true,
+    },
+    {
+      id: swr?.id ?? "safe-withdrawal-rate",
+      sourceIds: swr ? [swr.id] : undefined,
+      label: "Safe withdrawal rate",
+      lastUpdated: swr?.lastReviewedAt ?? null,
       cadence: "annually",
       required: true,
     },
   ];
 
-  // Market prices: every CURRENTLY HELD holding (qty > 0) must carry a fresh
-  // price. One unpriced/unconvertible holding ⇒ lastUpdated null ⇒ missing;
-  // otherwise the OLDEST price in use sets the freshness (weekly grace — the
-  // feed updates daily). Required: stale prices make net worth wrong.
-  const held = val.value.holdings.filter((h) => Number(h.quantity) > 0);
+  const held = val.value.holdings.filter((holding) =>
+    dec(holding.quantity).greaterThan(0),
+  );
   if (held.length > 0) {
-    const anyUnpriced = held.some((h) => !h.priced || h.valuationAsOf === null);
+    const anyUnpriced = held.some(
+      (holding) => !holding.priced || holding.valuationAsOf === null,
+    );
     freshness.push({
       id: "market-prices",
       sourceIds: held.flatMap((holding) => holding.inputs),
       label: "Market prices",
       lastUpdated: anyUnpriced
         ? null
-        : minDate(held.map((h) => h.valuationAsOf as string)),
+        : minDate(held.map((holding) => holding.valuationAsOf as string)),
       cadence: "weekly",
       required: true,
     });
   }
 
-  const propertyValuedAt = minDate(facts.properties.map((p) => p.valuedAt));
-  if (facts.properties.length > 0) {
+  for (const account of facts.accounts) {
     freshness.push({
-      id: "property-valuations",
-      sourceIds: facts.properties.map((property) => property.id),
-      label: "Property valuations",
-      lastUpdated: propertyValuedAt,
+      id: `account-${account.id}`,
+      sourceIds: derived.cashInputsByAccount[account.id],
+      label: `${account.name ?? "Account"} balance`,
+      lastUpdated: latestObservationDate(
+        observations,
+        "accountId",
+        account.id,
+        account.openingAsOf,
+        asOf,
+      ),
       cadence: "quarterly",
       required: false,
     });
   }
 
-  // Pension freshness reads the latest dated revaluation — before
-  // revaluations existed a pension went permanently stale with no legal way to
-  // update it, since the opening baseline never moves.
-  const pension = facts.accounts.find((a) => a.type === "pension");
-  if (pension) {
-    const pensionRevals = (facts.revaluations ?? []).filter(
-      (reval) => reval.accountId === pension.id && reval.valuedAt <= asOf,
-    );
-    const latestReval =
-      pensionRevals.length === 0
-        ? null
-        : pensionRevals.reduce((a, b) => (a.valuedAt >= b.valuedAt ? a : b));
+  for (const holding of facts.holdings) {
     freshness.push({
-      id: pension.id,
-      sourceIds: latestReval ? [pension.id, latestReval.id] : [pension.id],
-      label: "Pension value",
-      lastUpdated: latestReval?.valuedAt ?? pension.openingAsOf,
-      cadence: "quarterly",
-      required: false,
-    });
-  }
-
-  freshness.push({
-    id: swr?.id ?? "safe-withdrawal-rate",
-    sourceIds: swr ? [swr.id] : undefined,
-    label: "Safe withdrawal rate",
-    lastUpdated: swr?.lastReviewedAt ?? null,
-    cadence: "annually",
-    required: true,
-  });
-
-  // Tax-table currency: the versioned tables must cover the
-  // snapshot's tax year. The registry selects by asOf year, falling back to
-  // the latest available tables when the year's haven't landed — and the
-  // fallback IS the stale signal here. Year-rollover ⇒ missing immediately;
-  // within the covered year the annual cadence doubles as the review
-  // reminder. A soft flag (not required): outdated tables make the tax
-  // ESTIMATE stale, not net worth — the review proposes the bump.
-  const taxConfigs = selectTaxConfigs(Number(asOf.slice(0, 4)));
-  freshness.push({
-    id: "tax-tables",
-    label: `Tax tables (${taxConfigs.income.version}, ${taxConfigs.wealth.version})`,
-    lastUpdated:
-      Number(asOf.slice(0, 4)) > taxConfigs.income.year
-        ? null
-        : `${taxConfigs.income.year}-01-01`,
-    cadence: "annually",
-    required: false,
-  });
-
-  // The SWR and the spend family have their own freshness entries above; the
-  // conservative/optimistic refinements ride on the base assumption's review.
-  const otherAssumptions = facts.assumptions.filter(
-    (assumption) =>
-      assumption.key !== "safeWithdrawalRate" &&
-      !assumption.key.startsWith("monthlySpend"),
-  );
-  const assumptionsReviewedAt = minDate(
-    otherAssumptions.map((a) => a.lastReviewedAt),
-  );
-  if (otherAssumptions.length > 0) {
-    freshness.push({
-      id: "assumptions",
-      sourceIds: otherAssumptions.map((assumption) => assumption.id),
-      label: "Assumptions",
-      lastUpdated: assumptionsReviewedAt,
+      id: `holding-${holding.id}`,
+      sourceIds: derived.quantityInputsByHolding[holding.id],
+      label: "Investment quantities",
+      lastUpdated: latestObservationDate(
+        observations,
+        "holdingId",
+        holding.id,
+        holding.openingAsOf,
+        asOf,
+      ),
       cadence: "annually",
       required: false,
     });
   }
 
-  // Spend calibration: when enough recent months are logged, their
-  // trailing average checks the assumption. Divergence ⇒ a SOFT flag, never
-  // Data stale; too few logs ⇒ silence (the log is optional by design).
-  const calibration = spendCalibration({
-    asOf,
-    assumptionEUR: spendAssumption?.value ?? null,
-    logs: facts.monthlySpend,
-  });
-  const flags: SoftFlag[] = [];
+  if (facts.properties.length > 0) {
+    freshness.push({
+      id: "property-valuations",
+      sourceIds: facts.properties.map((property) => property.inputId ?? property.id),
+      label: "Property valuations",
+      lastUpdated: minDate(facts.properties.map((property) => property.valuedAt)),
+      cadence: "annually",
+      required: false,
+    });
+  }
+  if (facts.liabilities.length > 0) {
+    freshness.push({
+      id: "liability-balances",
+      sourceIds: facts.liabilities.map((liability) => liability.inputId ?? liability.id),
+      label: "Debt balances",
+      lastUpdated: minDate(
+        facts.liabilities
+          .map((liability) => liability.valuedAt)
+          .filter((date): date is string => Boolean(date)),
+      ),
+      cadence: "quarterly",
+      required: false,
+    });
+  }
+  if ((facts.otherAssets?.length ?? 0) > 0) {
+    freshness.push({
+      id: "other-asset-valuations",
+      sourceIds: facts.otherAssets?.map((asset) => asset.inputId ?? asset.id),
+      label: "Other asset values",
+      lastUpdated: minDate((facts.otherAssets ?? []).map((asset) => asset.valuedAt)),
+      cadence: "annually",
+      required: false,
+    });
+  }
 
-  // Negative cash: the symmetric guard to the negative-holding block
-  // in quick-log. A warn, not a block — negative cash usually means a missing
-  // movement or a one-legged transfer, and honesty beats refusing the entry.
+  const otherAssumptions = facts.assumptions.filter(
+    (assumption) =>
+      assumption.key !== "safeWithdrawalRate" &&
+      !assumption.key.startsWith("monthlySpend"),
+  );
+  if (otherAssumptions.length > 0) {
+    freshness.push({
+      id: "assumptions",
+      sourceIds: otherAssumptions.map((assumption) => assumption.id),
+      label: "Planning inputs",
+      lastUpdated: minDate(
+        otherAssumptions.map((assumption) => assumption.lastReviewedAt),
+      ),
+      cadence: "annually",
+      required: false,
+    });
+  }
+
+  const flags: SoftFlag[] = [];
   for (const account of facts.accounts) {
     const cash = derived.cashByAccount[account.id];
     if (cash !== undefined && dec(cash).isNegative()) {
       flags.push({
         id: `negative-cash-${account.id}`,
         sourceIds: derived.cashInputsByAccount[account.id],
-        label: `Cash is negative in ${account.name ?? account.id} — a movement may be missing or a transfer one-legged`,
+        label: `Cash is negative in ${account.name ?? account.id} — confirm the balance`,
       });
     }
   }
 
-  if (calibration?.divergent) {
-    flags.push({
-      id: "spend-calibration",
-      sourceIds: [
-        ...calibration.inputs,
-        ...(spendAssumption ? [spendAssumption.id] : []),
-      ],
-      label: `Spend assumption looks off (logged spend runs ${calibration.divergencePct}% vs the assumption)`,
-    });
-  }
-
   const dq = dataQuality({ snapshotId, asOf, inputs: freshness, flags });
-
-  // Tax estimate for the asOf year. Realized capital gains are DERIVED from the
-  // ledger: the opening tax-lot baseline + every buy form the FIFO queue, every
-  // sell consumes it (so buys/sells you quick-log maintain lots — no re-seeding).
-  // Dividends come from `dividend` movements; rental from the rough vivienda
-  // model. Pension withdrawals that ACTUALLY happened (withdraw legs on a
-  // pension account in the tax year) feed the general base; hypothetical ones
-  // stay 0 here and live in scenarios (irreversible, principle #6).
-  const taxYear = String(Number(asOf.slice(0, 4)));
-  const cg = realizedCapitalGains({
-    openingLots: facts.taxLots ?? [],
-    movements: facts.movements,
-    asOf,
-    washSaleWindowMonths: taxConfigs.income.washSaleWindowMonths,
-    holdingOpeningAsOf: {
-      ...(facts.holdingOpeningAsOf ?? {}),
-      ...Object.fromEntries(
-        facts.holdings.map((holding) => [holding.id, holding.openingAsOf]),
-      ),
-    },
-  });
-
-  const accountOpeningAsOf = new Map(
-    Object.entries({
-      ...(facts.accountOpeningAsOf ?? {}),
-      ...Object.fromEntries(
-        facts.accounts.map((account) => [account.id, account.openingAsOf]),
-      ),
-    }),
-  );
-  const dividendMovs = effectiveMovements(facts.movements, asOf).filter(
-    (m) =>
-      m.type === "dividend" &&
-      m.occurredAt.slice(0, 4) === taxYear &&
-      m.occurredAt >= (accountOpeningAsOf.get(m.accountId) ?? ""),
-  );
-  const dividendsEUR = sum(dividendMovs.map((m) => m.amount)).toFixed(2);
-
-  // Realised pension withdrawals: in Spain any rescate is general income. The
-  // withdraw leg on a pension-type account is the honest, ledger-derived
-  // signal (a pension-to-pension transfer would count too — stated in the
-  // config's exclusions).
-  const pensionAccountIds = new Set(
-    facts.accounts.filter((a) => a.type === "pension").map((a) => a.id),
-  );
-  const pensionWithdrawalMovs = effectiveMovements(facts.movements, asOf).filter(
-    (m) =>
-      m.type === "withdraw" &&
-      pensionAccountIds.has(m.accountId) &&
-      m.occurredAt.slice(0, 4) === taxYear &&
-      m.occurredAt >= (accountOpeningAsOf.get(m.accountId) ?? ""),
-  );
-  const pensionWithdrawalEUR = sum(
-    pensionWithdrawalMovs.map((m) => m.amount),
-  ).toFixed(2);
-
-  const rental = rentalIncome({
-    properties: facts.properties,
-    reductionRate: taxConfigs.income.rentalReductionRate,
-  });
-
-  // Loss carry-forward: derived by replaying ALL prior years'
-  // disposals — no stored tax state. Pre-ledger losses enter via the optional
-  // `lossCarryForward` assumption.
-  const preLedgerLoss = byKey("lossCarryForward");
-  const carry = lossCarryForward({
-    perDisposal: cg.perDisposal,
-    taxYear,
-    preLedgerLossEUR: preLedgerLoss?.value,
-  });
-
-  // Wealth tax: IP over the snapshot's net worth. The locked pile
-  // IS the pension exemption; the vivienda exemption takes the owner's share
-  // of the primary residence's value, capped in the calculator at €300k.
-  const primaryResidenceValueEUR = sum(
-    facts.properties
-      .filter((p) => p.isPrimaryResidence)
-      .map((p) => dec(p.value).times(dec(p.ownershipPct)).dividedBy(100).toFixed(2)),
-  ).toFixed(2);
-
-  // Family minimums (2026.3): not derivable from the ledger — the optional
-  // `familyMinimum` assumption carries them (reviewed on the annual cadence).
-  const familyMinimum = byKey("familyMinimum");
-
-  const tax = taxES({
-    snapshotId,
-    config: taxConfigs.income,
-    realizedCapitalGainsEUR: cg.realizedGainEUR,
-    dividendsEUR,
-    rentalTaxableEUR: rental.taxableEUR,
-    pensionWithdrawalEUR,
-    lossCarryForwardEUR: carry.availableEUR,
-    familyMinimumEUR: familyMinimum?.value,
-    wealth: {
-      config: taxConfigs.wealth,
-      netWorthTotalEUR: nw.value.totalEUR,
-      pensionEUR: nw.value.lockedEUR,
-      primaryResidenceValueEUR,
-    },
-    inputs: [
-      ...cg.inputs,
-      ...dividendMovs.map((m) => m.id),
-      ...pensionWithdrawalMovs.map((m) => m.id),
-      ...rental.inputs,
-      ...nw.inputs,
-      ...(preLedgerLoss ? [preLedgerLoss.id] : []),
-      ...(familyMinimum ? [familyMinimum.id] : []),
-    ],
-  });
-
   const st = status({
     snapshotId,
     runwayMonths: fr.value.runwayMonths,
-    monthlySpendEUR: spendAssumption?.value ?? null,
+    monthlySpendEUR: spend?.value ?? null,
     safeMonthlySpendEUR: fr.value.safeMonthlySpendEUR,
     dataQuality: dq.value,
     reviewDue,
   });
-
-  // Concentration: where the pile clusters, classified against the
-  // versioned ceilings. Feeds the recommendation triggers below.
-  const heldLines = val.value.holdings.filter((h) =>
-    dec(h.quantity).greaterThan(0),
-  );
   const conc = concentration({
     snapshotId,
-    holdings: heldLines.map((h) => ({
-      holdingId: h.holdingId,
-      accountId: accountByHolding.get(h.holdingId) ?? "",
-      isin: h.isin,
-      valueEUR: h.valueEUR,
-      inputs: h.inputs,
-    })),
+    holdings: val.value.holdings
+      .filter((holding) => dec(holding.quantity).greaterThan(0))
+      .map((holding) => ({
+        holdingId: holding.holdingId,
+        accountId: accountByHolding.get(holding.holdingId) ?? "",
+        isin: holding.isin,
+        valueEUR: holding.valueEUR,
+        inputs: holding.inputs,
+      })),
     accounts: facts.accounts,
     cashByAccount: derived.cashByAccount,
     netWorth: nw.value,
     netWorthInputs: nw.inputs,
   });
 
-  // Unrealized P/L per held position (open-lot basis vs market value) — the
-  // harvestable-losses trigger's input. Unpriced lines are skipped: an honest
-  // 0-valued line must not read as a giant harvestable loss.
-  const lotsByHolding = new Map<string, { costEUR: ReturnType<typeof dec>; ids: string[] }>();
-  for (const lot of cg.remainingLots) {
-    const entry = lotsByHolding.get(lot.holdingId) ?? { costEUR: dec(0), ids: [] };
-    entry.costEUR = entry.costEUR.plus(dec(lot.costBasisEUR));
-    entry.ids.push(lot.id);
-    lotsByHolding.set(lot.holdingId, entry);
-  }
-  const unrealized: UnrealizedPosition[] = heldLines
-    .filter((h) => h.priced && lotsByHolding.has(h.holdingId))
-    .map((h) => {
-      const entry = lotsByHolding.get(h.holdingId)!;
-      return {
-        holdingId: h.holdingId,
-        costBasisEUR: entry.costEUR.toFixed(2),
-        valueEUR: h.valueEUR,
-        sourceIds: [h.holdingId, ...entry.ids],
-      };
-    });
-
-  const triggers = recommendationTriggers({
-    snapshotId,
-    concentration: conc.value,
-    liquidEUR: nw.value.liquidEUR,
-    monthlySpendEUR: spendAssumption?.value ?? null,
-    safeMonthlySpendEUR: fr.value.safeMonthlySpendEUR,
-    realizedGainsEUR: cg.realizedGainEUR,
-    unrealized,
-    inputs: [...conc.inputs, ...fr.inputs],
-  });
-
-  // Unlevered property yield vs the assumed real ETF return (propertyYield.v1)
-  // — same assumption pair as the fire real view, same degradation rule (the
-  // real fields go absent when either assumption is unset).
-  const py = propertyYield({
-    snapshotId,
-    properties: facts.properties,
-    expectedReturnAnnual: expectedReturn?.value ?? null,
-    longRunInflationAnnual: longRunInflation?.value ?? null,
-    inputs: [
-      ...facts.properties.map((p) => p.id),
-      ...[expectedReturn?.id, longRunInflation?.id].filter(
-        (x): x is string => Boolean(x),
-      ),
-    ],
-  });
-
-  const snapshot: StrategicSnapshot = {
+  return {
     snapshotId,
     asOf,
     valuation: val,
@@ -572,35 +389,6 @@ export function computeSnapshot(args: {
     fire: fr,
     dataQuality: dq,
     status: st,
-    taxES: tax,
     concentration: conc,
-    recommendationTriggers: triggers,
-    propertyYield: py,
   };
-
-  // The standard decision set: each scenario re-runs this function
-  // over transformed facts — withScenarios:false stops the recursion at one
-  // level (a counterfactual carries no counterfactuals of its own).
-  if (withScenarios) {
-    snapshot.scenarios = standardScenarios({
-      base: snapshot,
-      facts,
-      compute: (variantFacts) =>
-        computeSnapshot({
-          snapshotId,
-          asOf,
-          reviewDue,
-          facts: variantFacts,
-          withScenarios: false,
-        }),
-      propertyNameById: args.propertyNameById,
-      holdingNameById: args.holdingNameById,
-      yieldByPropertyId: Object.fromEntries(
-        py.value.properties.map((line) => [line.propertyId, line]),
-      ),
-      taxConfig: taxConfigs.income,
-    });
-  }
-
-  return snapshot;
 }

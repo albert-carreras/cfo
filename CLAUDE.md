@@ -1,116 +1,83 @@
 # CFO — agent guide
 
-A calm personal financial brain: a **deterministic, sourced, tested** financial core with a calm
-status screen, and an LLM "voice" on top that is never allowed to invent a number.
-
-**Status: the spec in `docs/` is implemented and green behind `npm run test:ci`** — the trust core
-(schema + append-only ledger, the `deriveState` projection, the pure calculators in `src/calc/*`,
-quick-log, the calm home/detail/reviews UI), the Spanish/Cataluña tax engine (`src/calc/taxES.ts`:
-FIFO capital gains, IRPF scales, wealth tax, derived loss carry-forward, versioned year-selected
-configs), the daily market feed (`src/server/feed/*` + the `/api/cron/daily` sidecar, material
-change, monthly strategic promotion), the scenario engine (`src/calc/scenario.ts` — pure
-transforms over `SnapshotFacts`, the diff is the advice's number, including the parameterized
-buy-house scenario over `src/calc/mortgage.ts`), and the voice (`src/ai/*`:
-Ask with server-rendered metric tokens and deterministic tools (`src/server/askTools.ts` —
-`buy_house_scenario` / `mortgage_terms`, results registered as `{{tool.N.*}}` tokens), the
-scheduled monthly Review with its deterministic floor, the Picture narrative, the decision
-journal + accountability loop). What remains is the backlog (`docs/roadmap.md`). The whole spec lives in `docs/`; read it before writing code —
-the design is load-bearing and already decided.
+CFO is a small personal financial record: a current Picture, an occasional Data update workspace,
+a History, and an exportable Markdown brief for decision-making in a general AI project. A narrow
+monthly AI check reads deterministic metrics and says whether the position looks okay or deserves
+attention. There is no in-app advice chat or scenario engine.
 
 ## The one rule
 
-**The trust core must exist before the voice.** Deterministic, sourced, tested numbers first; the
-LLM analyst only narrates a financial brain that is boringly correct without it.
+**Trust core before voice.** Verified facts and deterministic, sourced, tested calculations own
+every personal number. The model may add a short qualitative Judgment; it never originates a
+number, researches the web, or makes a transaction recommendation.
 
-## Read first — `docs/` is the design source of truth
+## Read first
 
-- [docs/principles.md](docs/principles.md) — the non-negotiables. Read this first.
-- [docs/architecture.md](docs/architecture.md) — three layers + one automation, stack, privacy/infra.
-- [docs/data-model.md](docs/data-model.md) — facts, append-only ledger, snapshots, decision journal.
-- [docs/input.md](docs/input.md) — how data gets in (initial setup, regular updates, future events).
-- [docs/calculators.md](docs/calculators.md) — the deterministic trust core, the status engine, the `CalcResult` contract.
-- [docs/ai-analyst.md](docs/ai-analyst.md) — the pull-first Ask layer and the Review analyst.
-- [docs/roadmap.md](docs/roadmap.md) — what's deliberately not built yet.
+- [docs/principles.md](docs/principles.md) — product invariants.
+- [docs/architecture.md](docs/architecture.md) — boundaries and automation.
+- [docs/data-model.md](docs/data-model.md) — stored facts, observations and history.
+- [docs/input.md](docs/input.md) — how real-life changes are recorded.
+- [docs/calculators.md](docs/calculators.md) — the deterministic trust core.
+- [docs/ai-analyst.md](docs/ai-analyst.md) — monthly check and Markdown handoff.
 
-If code contradicts a doc, **the doc wins** — unless you update the doc in the same change.
+If code contradicts a doc, update the doc in the same change.
 
-## Invariants you must not break
+## Invariants
 
-These are the spine (distilled from `principles.md`). Violating them in code breaks the product:
+1. Keep **Verified**, **Calculated** and **Judgment** distinct in storage, APIs and UI.
+2. All personal figures come from the trust core; the LLM receives a summary and writes no digits.
+3. Calculators in `src/calc/*` are pure, versioned and tested. Each returns `CalcResult<T>` with
+   provenance ids.
+4. Dated observations are append-only. Legacy movements remain append-only; corrections are new
+   rows. Facts are soft-closed, never deleted through product flows.
+5. An open plan is context, not a present asset and not a simulated scenario.
+6. Removing `OPENAI_API_KEY` leaves the entire record, calculations, export and deterministic
+   check working.
+7. Data updates never wait for an LLM. The status engine remains deterministic.
+8. Preserve old Ask/Review/Picture database tables as archival data unless a separately approved
+   migration explicitly removes them. They are not active product surfaces.
 
-1. **Three epistemic categories stay distinct everywhere** — **Verified** (a fact you entered),
-   **Calculated** (a deterministic output), **Judgment** (an LLM / rule-of-thumb opinion). Never
-   blur them in data, API, or UI.
-2. **Calculators compute; the LLM never originates a number about the user.** Every figure shown
-   about *you* comes from a deterministic calculator fed by a Verified fact.
-3. **Calculators are pure, deterministic, versioned, Vitest-tested.** Each returns a `CalcResult`
-   carrying provenance (`inputs`). No I/O, no clock, no randomness inside them.
-4. **The ledger is append-only.** Never edit or delete a `movements` row — corrections are new
-   rows. Facts are soft-closed (`disposedAt`), never deleted. Current state = **opening baseline +
-   movements since**.
-5. **Provenance everywhere.** Every Calculated figure traces back to the snapshot + the
-   fact/movement/price rows it used, with a date.
-6. **The LLM lives behind `src/ai/*` and receives only calculator JSON + assumption summaries**
-   — never raw accounts, movements, prices, documents, or `CalcResult.inputs` id lists. Pull-first: it answers when asked, never pushes market opinions. Removing
-   `OPENAI_API_KEY` disables all external LLM calls; every AI surface degrades to its
-   deterministic floor.
-7. **The status engine (`src/calc/status.ts`) is a deterministic, tested calculator, not UI logic.**
-8. **The provider name stays out of the product design** — it's an implementation detail behind the
-   interface (recorded once, in `architecture.md`).
-9. **Irreversible actions are gated behind manual review** (sell a property, quit the job, sell a
-   large position > €100k, pension withdrawal). The app may not sound certain about them.
+## Product surface
 
-## Stack & conventions
+- `/` — Picture: current position, independence-plan metrics, data state, open plans, latest check.
+- `/data` — confirm current values in one dated batch; add assets/debt; edit planning inputs/plans.
+- `/history` — monthly checks, human data updates and strategic snapshots.
+- `/api/export` — current Markdown context pack for ChatGPT/Claude projects.
+- `/api/cron/daily` — market prices, FX and deterministic snapshots.
+- `/api/cron/check` — idempotent monthly qualitative check.
 
-- **Next.js (App Router) + TypeScript + Tailwind** (v4, via `@tailwindcss/postcss`)
-- **Drizzle ORM + Postgres** (the `postgres` driver) — schema at `src/server/db/schema.ts`,
-  migrations in `drizzle/`, `DATABASE_URL` env
-- **Zod** for validation, **Vitest** for tests, `@paralleldrive/cuid2` for ids, `tsx` for scripts
-- **Node 24**, **npm** (no pnpm/yarn)
+The UI uses a Japanese early-2000s technical-print aesthetic shared with piso-radar: dense grid,
+tabular numerals, square controls, black rules and restrained vermillion registration marks.
 
-## Repo layout
+## Stack and commands
 
-- `docs/` — the spec (design source of truth)
-- `src/app/*` — Next App Router (the calm home / status screen)
-- `src/calc/*` — pure calculators: `valuation.ts`, `netWorth.ts`, `fire.ts`, `dataQuality.ts`,
-  `status.ts`, `taxES.ts`, `confidence.ts`, `concentration.ts`, `scenario.ts`, …
-- `src/ai/*` — the voice, behind one interface
-- `src/server/db/schema.ts` — Drizzle schema (facts + append-only ledger)
-- `scripts/seed.ts` — destructive dev/test seed onto the committed synthetic fixture
-  (`scripts/seed.fixture.ts`, which doubles as the test fixture) or a git-ignored `seed.local.ts`
-- `drizzle/` — migrations
+Next.js App Router, TypeScript, Tailwind v4, Drizzle/Postgres, Zod, Vitest, Node 24 and npm.
 
-## Commands
-
-| Command | What |
+| Command | Purpose |
 |---|---|
-| `npm run dev` | Next dev server |
-| `npm run test` / `test:watch` | Vitest |
-| `npm run typecheck` | `tsc --noEmit` |
-| `npm run lint` | eslint (`--max-warnings=0`) |
-| `npm run test:ci` | **the gate** — lint + typecheck + test |
-| `npm run db:generate` / `db:migrate` / `db:studio` | drizzle-kit |
+| `npm run dev` | Local app on port 3222 |
+| `npm run test:ci` | Gate: lint, typecheck, tests |
+| `npm run db:generate` | Generate a migration after schema changes |
+| `npm run db:migrate` | Apply migrations |
+| `npm run seed` | Destructive synthetic/local seed |
 
-`test:ci` is the gate (pure, no DB); the DB commands need a running Postgres
-(`docker compose up -d`, then `db:migrate` + `seed`).
+The database schema is `src/server/db/schema.ts`; migrations are in `drizzle/`. Real financial
+data belongs only in Postgres or git-ignored `scripts/seed.local.ts`.
 
-## The `CalcResult` contract (the spine)
+## `CalcResult` contract
 
 ```ts
 type CalcResult<T> = {
-  snapshotId: string;   // ties the output to a point-in-time set of facts
-  value: T;             // the typed numbers
-  source: string;       // e.g. "netWorth.v1"
-  version: string;      // e.g. "taxES.es-cat.2026.1"
-  inputs: string[];     // ids of the facts/movements/prices it used (provenance)
+  snapshotId: string;
+  value: T;
+  source: string;
+  version: string;
+  inputs: string[];
 };
 ```
 
 ## Infra
 
-Runs on `au` as a Docker Compose stack. The app binds only to host loopback and an outbound-only
-Cloudflare Tunnel plus a tiny Workers VPC edge proxy publishes `https://cfo.bored.cat`;
-**Cloudflare Access is the auth boundary**, so there is still no app-level login / 2FA. Tailscale
-remains only the management path for SSH — never use Tailscale Serve or add a direct public origin
-route. Postgres stays private on the same box. Removing `OPENAI_API_KEY` or `NTFY_URL` kills the
-corresponding optional egress.
+Production runs on `au` behind Cloudflare Access and an outbound-only Tunnel. Postgres is private.
+The model API and optional ntfy endpoint are the only application egress beyond market/ECB feeds.
+See [docs/deploy.md](docs/deploy.md).

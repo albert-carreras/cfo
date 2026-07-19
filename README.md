@@ -1,85 +1,49 @@
-# CFO — a calm personal financial brain
+# CFO
 
-> **This is not an "AI CFO."**
-> It's a deterministic personal financial brain with a calm status screen.
-> The voice sits on top — and is never allowed to invent a number.
+A personal financial record that answers two quiet questions:
 
-A single, trustworthy place to check on apartments, ETFs, pensions and cash — one that
-**knows everything, stays calm on the surface, and is deep enough underneath that its reports
-earn confidence**, so you can step back from daily market-watching without anxiety.
+1. What is my position now, and does it still look okay?
+2. Is my data ready to take into a serious decision conversation?
 
-## What it does
+CFO keeps verified accounts, investments, property, other assets, debt and planning inputs. Pure
+calculators produce the current Picture and preserve provenance. A narrow monthly AI check adds a
+short qualitative note. For decisions—buying a house, changing work, handling an inheritance—the
+app exports an up-to-date Markdown context pack for a ChatGPT or Claude project.
 
-- **An append-only ledger and dated facts** — accounts, holdings with FIFO tax lots, properties,
-  pensions (re-anchored by dated statements), assumptions. Corrections are new rows; current
-  state = opening baseline + movements since. Every figure traces to its sources.
-- **Pure, versioned, tested calculators** — net worth, FIRE/runway (nominal and real, with
-  conservative/base/optimistic bands and explicit failure modes), data quality, a slow confidence
-  score, concentration, property yield, and Spanish/Cataluña tax: FIFO capital gains, savings &
-  general IRPF scales, wealth tax (IP) with the IRPF–IP límite conjunto, and a derived 4-year
-  loss carry-forward. The tax card prints its exclusions next to the number.
-- **A daily market feed** behind pure parsers (prices + ECB FX), with a monthly *strategic*
-  snapshot promoted on month rollover or material change — market noise never pokes the surface.
-- **A deterministic status engine** — one calm status on home (totals masked by default; full
-  depth one tap away on `/detail`), honest `Data stale`, and coarse-by-design amounts
-  (~3 significant figures, runway in years).
-- **A scenario engine** — sell-a-property (rough plusvalía), sell-a-position at-once-vs-spread on
-  the FIFO engine, planned events: each a pure transform over the snapshot facts, recomputed in
-  full, with the diff as the advice's number.
-- **The voice (optional)** — an Ask page, a scheduled monthly Review (reassurance digest,
-  web-sourced regulatory watch, tax-table re-verification, at most one gated recommendation),
-  a standing Picture narrative, and an accountability loop that re-measures every journaled
-  decision. The LLM only ever sees calculator JSON and assumption summaries; every figure it
-  shows is a server-rendered metric token; no API key ⇒ every surface degrades to its
-  deterministic floor.
-- **Optional push** via [ntfy](https://ntfy.sh) — coarse pings (status transitions, material
-  changes, feed failures, published reviews), never amounts.
+It deliberately has no in-app Ask chat, mortgage wizard, tax-advice engine, transaction-heavy
+workflow or generated financial essay.
 
-## The one rule
+## Product
 
-**The trust core must exist before the voice.** Deterministic, sourced, tested numbers first.
-The LLM narrates calculator outputs; it never originates a number about you.
+- **Picture** — net worth, liquidity, investable assets, property equity, debt, runway, data state,
+  open plans and latest CFO check.
+- **Data** — confirm all current values as one dated observation; add an account, investment,
+  property/mortgage, car/other asset or loan; maintain assumptions and plans.
+- **History** — human updates, strategic snapshots and checks.
+- **Export** — one Markdown file containing verified facts, calculated metrics, dates, gaps and
+  instructions that preserve the evidence boundaries in an external AI conversation.
+- **Automation** — daily price/FX refresh and one idempotent monthly check using `gpt-5.6-sol` by
+  default. Without an API key, the deterministic product still works.
 
-## Core principle
+Every personal number is **Verified** or **Calculated**. Model prose is **Judgment** and is not
+allowed to contain figures.
 
-The anxiety firewall governs **presentation, not engine depth**. The brain can be as deep and
-complex as needed; the surface just doesn't constantly poke you. Full detail is always one tap
-away — never hidden behind paternalistic UX.
-
-## Run it
-
-Local dev (Node 24, Docker for Postgres):
+## Run locally
 
 ```sh
 docker compose up -d
 cp .env.example .env
 npm install
-npm run db:migrate && npm run seed   # seeds the committed synthetic fixture
+npm run db:migrate
+npm run seed
 npm run dev
 ```
 
-`npm run test:ci` is the gate — lint + typecheck + the full Vitest suite, no DB needed.
+`npm run test:ci` is the local gate. The seed command is destructive and uses the committed
+synthetic fixture unless a git-ignored `scripts/seed.local.ts` exists.
 
-Self-hosting: the production stack runs on `au`, with the app bound only to host loopback and
-published at `https://cfo.bored.cat` through an outbound-only Cloudflare Tunnel and edge Worker.
-Cloudflare Access is the auth boundary, so there is no app-level login; Tailscale remains only for
-server management. See [docs/deploy.md](docs/deploy.md) for the Docker Compose stack.
-
-Your real data lives in a git-ignored `scripts/seed.local.ts` and your `.env`; only the synthetic
-fixture is committed.
-
-## Documentation
-
-| Doc | What's in it |
-|---|---|
-| [docs/principles.md](docs/principles.md) | The non-negotiables. Read this first. |
-| [docs/architecture.md](docs/architecture.md) | The three layers + one automation, tech stack, privacy. |
-| [docs/data-model.md](docs/data-model.md) | Tables: facts, ledger, snapshots, decision journal, data quality. |
-| [docs/input.md](docs/input.md) | How data gets in: initial setup, regular updates, future events. |
-| [docs/calculators.md](docs/calculators.md) | The deterministic trust core, the status engine, scenarios, tax. |
-| [docs/ai-analyst.md](docs/ai-analyst.md) | The pull-first Ask layer and the monthly Review analyst. |
-| [docs/roadmap.md](docs/roadmap.md) | What's deliberately not built yet. |
-| [docs/deploy.md](docs/deploy.md) | The private-origin Cloudflare Access production stack. |
+Start with [docs/principles.md](docs/principles.md) and [CLAUDE.md](CLAUDE.md). Production details
+are in [docs/deploy.md](docs/deploy.md).
 
 ## License
 

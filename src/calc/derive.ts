@@ -43,7 +43,8 @@ export type DeriveAccount = {
 // a re-statement is a NEW row, the newest effective one winning.
 export type DeriveRevaluation = {
   id: string;
-  accountId: string;
+  accountId?: string;
+  holdingId?: string;
   value: Money;
   valuedAt: string; // YYYY-MM-DD
   createdAt: string; // ISO timestamp — tie-break for same-day re-statements
@@ -101,6 +102,28 @@ function latestRevaluation(
   return latest;
 }
 
+function latestHoldingRevaluation(
+  rows: DeriveRevaluation[],
+  holding: DeriveHolding,
+  asOf: string,
+): DeriveRevaluation | null {
+  let latest: DeriveRevaluation | null = null;
+  for (const row of rows) {
+    if (row.holdingId !== holding.id) continue;
+    if (row.valuedAt > asOf || row.valuedAt < holding.openingAsOf) continue;
+    if (
+      !latest ||
+      row.valuedAt > latest.valuedAt ||
+      (row.valuedAt === latest.valuedAt &&
+        (row.createdAt > latest.createdAt ||
+          (row.createdAt === latest.createdAt && row.id > latest.id)))
+    ) {
+      latest = row;
+    }
+  }
+  return latest;
+}
+
 export function deriveState(args: {
   accounts: DeriveAccount[];
   holdings: DeriveHolding[];
@@ -130,10 +153,12 @@ export function deriveState(args: {
     if (reval) inputs.push(reval.id);
   }
   for (const h of holdings) {
-    qty.set(h.id, dec(h.openingQuantity));
-    openingByHolding.set(h.id, h.openingAsOf);
-    quantityInputs.set(h.id, [h.id]);
+    const reval = latestHoldingRevaluation(revaluations, h, asOf);
+    qty.set(h.id, dec(reval ? reval.value : h.openingQuantity));
+    openingByHolding.set(h.id, reval ? reval.valuedAt : h.openingAsOf);
+    quantityInputs.set(h.id, reval ? [h.id, reval.id] : [h.id]);
     inputs.push(h.id);
+    if (reval) inputs.push(reval.id);
   }
 
   const applicable = effectiveMovements(movements, asOf);

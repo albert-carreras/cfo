@@ -2,8 +2,8 @@ import type { AccountType } from "@/calc/netWorth";
 import type { MovementType } from "@/calc/derive";
 import type { SnapshotFacts } from "@/calc/snapshot";
 
-// Mirrors plannedEventTypeEnum in the schema. Forecasts, not facts — stored facts
-// consumed only by the scenario engine; never affect today's net worth.
+// Mirrors plannedEventTypeEnum in the schema. Plans are context for export and
+// never affect today's net worth.
 type PlannedEventType =
   | "house_purchase"
   | "property_sale"
@@ -121,8 +121,7 @@ export type Fixture = {
   }[];
   prices: { id: string; isin: string; price: string; currency: string; asOf: string }[];
   fx: { id: string; base: string; quote: string; rate: string; asOf: string }[];
-  // Forecasts (future home, inheritances). Optional: the synthetic fixture omits
-  // them. Not read by computeSnapshot's base case; consumed by the scenario engine.
+  // Future context (home, inheritance). Optional; never present-day facts.
   plannedEvents?: {
     id: string;
     type: PlannedEventType;
@@ -136,9 +135,9 @@ export type Fixture = {
 
 // The structural view as the pure calculator input — shared by the seed script
 // and the unit tests so both compute over exactly the same shape. Numeric
-// assumptions only (date-typed ones feed the Ask layer's profile, never
-// calculators); revaluation rows map from the generic DB shape (assetId) to
-// the derive shape (accountId).
+// assumptions only (date-typed ones are exported as context, never calculator
+// inputs); revaluation rows map from the generic DB shape (assetId) to the
+// derive shape (accountId).
 export function toSnapshotFacts(data: Fixture): SnapshotFacts {
   return {
     ...data,
@@ -202,7 +201,7 @@ export const fixture: Fixture = {
     { id: "assum_return", key: "expectedReturn", value: "0.07", source: "long-run nominal portfolio estimate", lastReviewedAt: BASELINE },
     { id: "assum_lri", key: "longRunInflation", value: "0.02", source: "user forecast", lastReviewedAt: BASELINE },
     { id: "assum_inflation", key: "inflation", value: "0.02", source: "feed:ecb", lastReviewedAt: BASELINE },
-    // Date-typed: feeds the Ask layer's profile (age), never the calculators.
+    // Date-typed: exported as age context, never a calculator input.
     { id: "assum_birth", key: "birthDate", value: null, dateValue: "1988-07-14", source: "user", lastReviewedAt: BASELINE },
   ],
 

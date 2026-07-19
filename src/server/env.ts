@@ -6,11 +6,10 @@ const serverEnvSchema = z.object({
     .default("development"),
   // The brain's only secret. No third-party tokens in the manual-entry core.
   DATABASE_URL: z.string().min(1),
-  // The voice's key — the one egress off the tailnet. Optional:
-  // absent ⇒ Ask is unavailable, everything deterministic still runs.
+  // Optional monthly qualitative check. Without it, the deterministic check
+  // and the rest of the product continue without provider prose.
   OPENAI_API_KEY: z.string().min(1).optional(),
-  // Provider model override for every voice surface. Optional: absent ⇒ the
-  // versioned default in src/ai/openai.ts (the current flagship tier).
+  // Optional provider-model override; absent uses src/ai/check.ts's default.
   OPENAI_MODEL: z.string().min(1).optional(),
   // ntfy push topic URL (e.g. https://ntfy.sh/<topic>). Optional: absent ⇒
   // notifications are a no-op. Public-topic discipline: coarse payloads only.

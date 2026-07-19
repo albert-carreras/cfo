@@ -1,44 +1,23 @@
-# Roadmap — what's left
+# Roadmap
 
-Guiding rule: **the trust core must exist before the voice.** That order held: the deterministic
-brain (ledger, calculators, status engine, market feed), the calm UI, and only then the voice
-(Ask, the monthly Review analyst, the Picture) — everything described in the other docs is built
-and behind `npm run test:ci`. This file tracks what is deliberately **not** built yet.
+The useful product is intentionally small. Add convenience only when repeated real use justifies
+it; do not rebuild an in-app advice chat or speculative calculator suite.
 
-If you're looking for how the system works, read [principles.md](principles.md) and
-[architecture.md](architecture.md); this page is only the backlog.
+## Near-term candidates
 
-## Backlog
+- A compact soft-close flow for sold property, closed accounts/holdings, repaid loans and disposed
+  other assets.
+- Better batch-update ergonomics: show previous observation date/value, allow “unchanged” without
+  resubmitting, and summarize the delta before save.
+- Import a bank/broker statement as reviewable observations, never as opaque truth.
+- A document vault for statements/deeds linked to observations.
+- A small export-preview page and optional copy-to-clipboard in addition to download.
+- Concentration look-through only if it becomes decision-relevant.
 
-Deliberately unscheduled — each stays open until there's a reason to build it:
+## Explicit non-goals
 
-- **Tax-config DB table + editing UI** — the versioned tax tables ship as config-as-code
-  (`src/calc/config/taxES.es-cat.*.ts`, selected by year via `config/taxRegistry.ts`), which keeps
-  the calculators pure and the sources cited in-file. A `tax_config` DB table is deferred until
-  there's a UI to edit the tables; the data model anticipates it
-  (see [data-model.md](data-model.md)).
-- **Audit logging & export/delete tooling** — the append-only ledger and snapshot provenance cover
-  the movement history, but editable facts (accounts, properties, assumptions) have no audit
-  trail, and there's no one-shot export/delete of all personal data
-  (see [architecture.md](architecture.md)).
-- **Import paths for holdings and lots** (broker CSV / paste) — initial setup and the quick-log
-  are manual by design; bulk import is the missing convenience for portfolios with long lot
-  histories (see [input.md](input.md)).
-- **Remaining tax exclusions** — the tax card prints what it doesn't model
-  (see [calculators.md](calculators.md)): ISGF (stated, not computed), detailed plusvalía (the
-  flat 5% stays until the cadastral model earns its complexity), wash-sale homogeneity beyond the
-  same holding, derived family minimums, the legacy 40% pre-2007 pension-lump-sum reduction,
-  mortgage-interest & depreciation deductions on rentals, dividend/interest withholding (estimates
-  run on net cash logged), the legal IP valuation basis, and the 25% dividend/interest cap on loss
-  offsets.
-- **Concentration look-through** — the concentration calculator classifies position / broker /
-  real-estate / country exposure against versioned ceilings; looking *through* a world ETF to its
-  sector weights (the tech-concentration question) is not modelled.
-- **Property ROE refinements** — the property-yield calculator covers unlevered gross/net/real
-  yields vs the assumed real ETF return; ROE with mortgage interest, a liquidity penalty and
-  life-utility weighting stay open.
-- **Cash-drag persistence** — the cash-drag recommendation trigger is instantaneous; "above the
-  ceiling for M consecutive months" needs the snapshot history and is deferred.
-- **Document vault + extraction** — statements and deeds as attached, parsed sources.
-- **Open banking** (revisit deliberately) — read-only spend import is the difference between a
-  system you maintain and a system that maintains distance for you. Keep saying no *knowingly*.
+- An Ask/chat page.
+- Mortgage, tax, property-sale or trade scenario calculators.
+- Regulatory/news research and market commentary.
+- Daily transaction or monthly spending bookkeeping as an engagement habit.
+- Automated actions or recommendations to buy/sell.

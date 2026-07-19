@@ -134,7 +134,7 @@ restart the connector because its loopback destination is stable.
 challenge (`302`, `401`, or `403`) to an unauthenticated request. A public `200` is treated as a
 failure. Use a browser session for the complete authenticated path.
 
-## The daily feed
+## Scheduled jobs
 
 A tiny `cron` sidecar hits `http://app:3222/api/cron/daily` over the private Compose network at
 06:15 UTC (settled previous EU closes, after the US close) and 07:45 UTC (after Xetra/Euronext
@@ -153,6 +153,10 @@ ticker is reported by the route and eventually makes data quality stale; it neve
 an indefinitely old valuation. Tickers are facts: fix them in `scripts/seed.local.ts` only when
 re-seeding anyway (which wipes the ledger); otherwise update the row directly on `au`.
 
+After the feed, the sidecar hits `/api/cron/check` on the first day of each month. The route
+deduplicates scheduled runs by month and stores a deterministic result even when the model is
+unavailable. Run it manually with `curl http://127.0.0.1:3222/api/cron/check`.
+
 ## Seeding prod (one-time / rare)
 
 `scripts/seed.local.ts` contains real data and is never committed. It is mounted from the host into
@@ -162,9 +166,9 @@ the one-shot seed container:
 ./stack prod seed
 ```
 
-The seed is destructive: it wipes every table and reloads from `seed.local.ts`. Anything logged in
-production but absent from the file is lost. Day-to-day money movements go through `/log`, and tax
-lots derive from the ledger; seed only for the initial slow-moving fact load and back up first.
+The seed is destructive: it wipes every table and reloads from `seed.local.ts`. Anything recorded
+in production but absent from the file is lost. Day-to-day maintenance belongs in `/data`; seed
+only for the initial slow-moving fact load and back up first.
 
 ## Backups
 

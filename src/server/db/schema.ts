@@ -56,7 +56,7 @@ export const movementTypeEnum = pgEnum("movement_type", [
   "expense",
 ]);
 
-export const liabilityTypeEnum = pgEnum("liability_type", ["mortgage"]);
+export const liabilityTypeEnum = pgEnum("liability_type", ["mortgage", "loan"]);
 
 export const plannedEventTypeEnum = pgEnum("planned_event_type", [
   "house_purchase",
@@ -75,8 +75,10 @@ export const snapshotKindEnum = pgEnum("snapshot_kind", ["strategic", "internal"
 // the opening `liabilities.balance`. Holdings keep their own (price-feed) path.
 export const revaluationAssetEnum = pgEnum("revaluation_asset_type", [
   "account",
+  "holding",
   "property",
   "liability",
+  "other_asset",
 ]);
 
 // --- Facts (Verified) ---
@@ -115,7 +117,7 @@ export const holdings = pgTable(
   (t) => [index("holdings_account_idx").on(t.accountId)],
 );
 
-// Structure only — consumed by the tax engine, unused by the other calculators.
+// Historical cost basis retained for the exported decision brief.
 export const taxLots = pgTable(
   "tax_lots",
   {
@@ -144,9 +146,25 @@ export const properties = pgTable("properties", {
   costsMonthly: money("costs_monthly").notNull().default("0"),
   isPrimaryResidence: boolean("is_primary_residence").notNull().default(false),
   emotionalValue: integer("emotional_value"),
-  // No market price for an apartment — these are periodic manual revaluations,
-  // which data_quality checks against a quarterly cadence.
+  // No market price for an apartment — periodic human observations supersede
+  // this opening value.
   valuedAt: date("valued_at").notNull(),
+  disposedAt: timestamp("disposed_at", { withTimezone: true }),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
+// Material possessions or interests that do not belong in the account /
+// security / property model. They are kept for context even when deliberately
+// excluded from planning net worth (the ordinary treatment for a car).
+export const otherAssets = pgTable("other_assets", {
+  id: id(),
+  name: text("name").notNull(),
+  category: text("category").notNull().default("other"),
+  value: money("value").notNull(),
+  includeInNetWorth: boolean("include_in_net_worth").notNull().default(false),
+  valuedAt: date("valued_at").notNull(),
+  note: text("note"),
   disposedAt: timestamp("disposed_at", { withTimezone: true }),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
@@ -155,6 +173,7 @@ export const properties = pgTable("properties", {
 export const liabilities = pgTable("liabilities", {
   id: id(),
   type: liabilityTypeEnum("type").notNull(),
+  name: text("name"),
   propertyId: text("property_id").references(() => properties.id),
   accountId: text("account_id").references(() => accounts.id),
   rate: money("rate"),
@@ -190,7 +209,7 @@ export const assumptions = pgTable(
   ],
 );
 
-// Forecasts, not facts — consumed only by the scenario engine.
+// Future context, never present-day facts or automatic scenario inputs.
 export const plannedEvents = pgTable("planned_events", {
   id: id(),
   type: plannedEventTypeEnum("type").notNull(),
@@ -204,12 +223,9 @@ export const plannedEvents = pgTable("planned_events", {
   updatedAt: updatedAt(),
 });
 
-// Dated value statements — the re-anchor path for assets whose value
-// is periodically STATED rather than derived (a pension statement, mirroring
-// the property `valuedAt` pattern). Append-only like the ledger: asset value =
-// latest revaluation + movements since its date (the opening-baseline rule,
-// re-applied). Generic (assetType + assetId) so later phases can reuse it;
-// today only `account` (pension) rows are written.
+// Dated human observations. Accounts and holding quantities re-anchor their
+// baseline before later legacy movements replay; property, liability and
+// other-asset observations supersede the earlier stated value. Append-only.
 export const revaluations = pgTable(
   "revaluations",
   {
@@ -355,9 +371,57 @@ export const snapshots = pgTable(
   ],
 );
 
-// --- Decision journal (Judgment) ---
+// One human update session: the dated observations entered together and the
+// note that explains why. The individual revaluation rows remain the numeric
+// audit trail; this is the readable history entry.
+export const dataUpdates = pgTable(
+  "data_updates",
+  {
+    id: id(),
+    asOf: date("as_of").notNull(),
+    note: text("note"),
+    changes: jsonb("changes").notNull(),
+    snapshotId: text("snapshot_id").references(() => snapshots.id, {
+      onDelete: "set null",
+      onUpdate: "cascade",
+    }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("data_updates_created_idx").on(t.createdAt)],
+);
 
-// One row per Ask answer. Append-only in spirit: question/answer/context are
+// The narrow monthly AI job: a qualitative audit over deterministic metrics.
+// No web research, no recommendations, no invented personal figures.
+export const healthChecks = pgTable(
+  "health_checks",
+  {
+    id: id(),
+    trigger: text("trigger").notNull(), // scheduled | manual
+    dedupeKey: text("dedupe_key"),
+    snapshotId: text("snapshot_id")
+      .notNull()
+      .references(() => snapshots.id, {
+        onDelete: "restrict",
+        onUpdate: "cascade",
+      }),
+    verdict: text("verdict").notNull(), // ok | watch | update
+    summary: jsonb("summary").notNull(),
+    report: jsonb("report"),
+    model: text("model"),
+    llmError: text("llm_error"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("health_checks_dedupe_key_idx")
+      .on(t.dedupeKey)
+      .where(sql`${t.dedupeKey} is not null`),
+    index("health_checks_created_idx").on(t.createdAt),
+  ],
+);
+
+// --- Retained legacy product records (archival, no active routes) ---
+
+// Legacy Ask answers. Append-only in spirit: question/answer/context are
 // never edited; only the human-review fields (chosenAction, reviewedAt) are
 // ever set, once, via markReviewed. `context` embeds the EXACT serialized
 // AskContext (metrics with server-rendered values included) the model saw, so
@@ -388,7 +452,7 @@ export const decisions = pgTable(
   (t) => [index("decisions_created_idx").on(t.createdAt)],
 );
 
-// --- Monthly reviews (Judgment + Calculated) ---
+// Legacy monthly reviews.
 
 // One row per scheduled monthly review, append-only. `scope` records how far
 // the review could go: "full" = the analyst ran (digest + regulatory watch +
@@ -439,7 +503,7 @@ export const reviews = pgTable(
   ],
 );
 
-// --- The picture (standing reassurance narrative, Judgment + Calculated) ---
+// Legacy generated Picture essays.
 
 // One row per (re)generation of the standing "/picture" narrative, append-only
 // — latest wins, a refresh is a new row, never an edit. Generated when a
@@ -490,7 +554,7 @@ export const settings = pgTable(
   (t) => [uniqueIndex("settings_key_idx").on(t.key)],
 );
 
-// --- Repeat-check log ---
+// Legacy page-view check log.
 
 // Append-only: one row each time the calm home is looked at, with the status
 // shown. Powers "you last checked … — nothing material changed since" and is

@@ -4,10 +4,13 @@ import { dec } from "@/calc/money";
 import {
   accounts,
   assumptions,
+  dataUpdates,
+  healthChecks,
   holdings,
   liabilities,
   monthlySpend,
   movements,
+  otherAssets,
   plannedEvents,
   properties,
   revaluations,
@@ -99,6 +102,10 @@ export function buildSetupRows(
   const liabilityRows = input.liabilities.map((liability) => ({
     id: idFn(),
     type: "mortgage" as const,
+    name:
+      liability.propertyIndex != null
+        ? `Mortgage · ${propertyRows[liability.propertyIndex].name}`
+        : "Mortgage",
     propertyId:
       liability.propertyIndex != null
         ? propertyRows[liability.propertyIndex].id
@@ -149,6 +156,9 @@ const BASELINE_TABLES = [
   { table: revaluations, name: "revaluations" },
   { table: monthlySpend, name: "monthly spend" },
   { table: plannedEvents, name: "planned events" },
+  { table: otherAssets, name: "other assets" },
+  { table: dataUpdates, name: "data updates" },
+  { table: healthChecks, name: "health checks" },
 ];
 
 // A fixed advisory-lock key (any constant) serializes concurrent commits.

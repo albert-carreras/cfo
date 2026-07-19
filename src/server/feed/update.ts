@@ -15,7 +15,6 @@ import {
   snapshotSummary,
   type MaterialChangeValue,
 } from "@/calc/materialChange";
-import { runPicture } from "../picture";
 import { decideDailyNotifications, sendNotification } from "../notify";
 import { setAssumption } from "../assumptions";
 import { eurPerUnit, fetchEcbDaily } from "./ecb";
@@ -60,9 +59,6 @@ export type DailyUpdateResult = {
   status: string;
   materialChange: MaterialChangeValue;
   strategic: { written: boolean; reason: string | null };
-  // The standing reassurance narrative, regenerated with each promotion.
-  // `generated:false` with no error = nothing promoted or already current.
-  picture: { generated: boolean; scope: string | null; error: string | null };
 };
 
 export async function runDailyUpdate(now = new Date()): Promise<DailyUpdateResult> {
@@ -182,8 +178,7 @@ export async function runDailyUpdate(now = new Date()): Promise<DailyUpdateResul
     ? storedSnapshotResult(lastInternal).status.value.status
     : null;
   const { facts, propertyNameById, holdingNameById } = await loadFacts();
-  // The daily internal row is history for material-change/confidence — it
-  // doesn't carry the decision scenarios (the strategic one below does).
+  // The daily internal row is the deep history underneath the calm surface.
   const internalSnapshot = computeSnapshot({
     snapshotId: createId(),
     asOf,
@@ -216,11 +211,6 @@ export async function runDailyUpdate(now = new Date()): Promise<DailyUpdateResul
           ? "material change"
           : null;
 
-  let picture: DailyUpdateResult["picture"] = {
-    generated: false,
-    scope: null,
-    error: null,
-  };
   if (reason !== null) {
     const strategicSnapshot = computeSnapshot({
       snapshotId: createId(),
@@ -234,17 +224,6 @@ export async function runDailyUpdate(now = new Date()): Promise<DailyUpdateResul
       computedAt: now,
       dedupeKey: `strategic:${asOf}`,
     });
-    // The standing reassurance narrative follows the promotion. runPicture
-    // never throws and resolves a missing key before any provider code — a
-    // provider outage can never fail the daily update.
-    const pic = await runPicture({ force: false });
-    picture = pic.ok
-      ? {
-          generated: !pic.skipped,
-          scope: pic.skipped ? null : pic.scope,
-          error: pic.skipped ? null : pic.llmError,
-        }
-      : { generated: false, scope: null, error: pic.reason };
   }
 
   // --- 4. Push notifications (ntfy) — pure rules decide, the send is
@@ -271,6 +250,5 @@ export async function runDailyUpdate(now = new Date()): Promise<DailyUpdateResul
     status: internalSnapshot.status.value.status,
     materialChange: mc.value,
     strategic: { written: reason !== null, reason },
-    picture,
   };
 }

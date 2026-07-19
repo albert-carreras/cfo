@@ -8,7 +8,6 @@ import { db } from "./db";
 import {
   accounts,
   holdings,
-  monthlySpend,
   movements,
   revaluations,
 } from "./db/schema";
@@ -18,12 +17,10 @@ import {
   latestStrategicSnapshot,
   persistSnapshot,
 } from "./snapshots";
-import { runPicture } from "./picture";
 import { MOVEMENT_TYPES } from "@/shared/quicklog";
 import {
   decimalString,
   isoDate,
-  monthString,
   nonNegativeDecimalString,
 } from "@/shared/validation";
 
@@ -32,7 +29,7 @@ export { MOVEMENT_TYPES } from "@/shared/quicklog";
 // The single write path into the ledger. Each intent has a transaction-scoped
 // primitive (validate + append, no recompute) and a thin public wrapper that
 // runs it in its own transaction and promotes one snapshot. Compound flows
-// (realise a planned event, dispose a property) compose the primitives inside
+// (for example, disposing a property) compose the primitives inside
 // ONE transaction with ONE final recomputeAndPromote, so a snapshot can never
 // capture a half-applied state.
 
@@ -65,14 +62,6 @@ export const movementInputSchema = z
   });
 
 export type MovementInput = z.infer<typeof movementInputSchema>;
-
-export const monthlySpendInputSchema = z.object({
-  month: monthString,
-  amount: decimalString,
-  note: z.string().nullish(),
-});
-
-export type MonthlySpendInput = z.infer<typeof monthlySpendInputSchema>;
 
 // Own-account transfer: ONE intent that writes BOTH legs — withdraw
 // on the source, transfer on the destination — atomically in one transaction,
@@ -146,23 +135,12 @@ export async function recomputeAndPromote(database: DbTransaction, now: Date) {
   return snapshot;
 }
 
-// Every user intent runs in ONE transaction ending in recomputeAndPromote —
-// and /picture must follow the promoted snapshot, not just the daily feed.
-// This wraps the intent transaction and refreshes the picture AFTER commit
-// (runPicture reads committed rows). It never throws: the picture is a
-// narrative about the facts, never a reason a logged fact fails. Its own
-// material-change/month-roll gate bounds provider calls, so routine logs
-// skip the model and a pile-moving one refreshes the story immediately.
+// Every user intent runs in one transaction. The monthly health check is a
+// separate concern; entering data never waits for an LLM.
 export async function intentTransaction<T>(
   fn: (tx: DbTransaction) => Promise<T>,
 ): Promise<T> {
-  const result = await db.transaction(fn);
-  try {
-    await runPicture({ force: false });
-  } catch {
-    // never block the intent on the narrative
-  }
-  return result;
+  return db.transaction(fn);
 }
 
 // Transaction-scoped primitive: validates and appends one movement row.
@@ -171,7 +149,7 @@ export async function appendMovementTx(
   tx: DbTransaction,
   value: MovementInput,
   now: Date,
-  // Forecast → fact lineage: set only by the realise-planned-event flow.
+  // Optional legacy lineage for rows created from old planned-event flows.
   options: { plannedEventId?: string } = {},
 ) {
   const today = utcDate(now);
@@ -287,7 +265,7 @@ export async function appendTransferTx(
   tx: DbTransaction,
   value: TransferInput,
   now: Date,
-  // Forecast → fact lineage: set only by the realise-planned-event flow,
+  // Optional legacy lineage for rows created from old planned-event flows,
   // stamped on BOTH legs.
   options: { plannedEventId?: string } = {},
 ) {
@@ -346,8 +324,8 @@ export async function appendTransferTx(
   return { transferGroupId, legs };
 }
 
-// Both legs in ONE transaction with a shared transferGroupId — quick-log can
-// no longer produce a one-sided transfer. Negative cash on the source is a
+// Both legs are in one transaction with a shared transferGroupId. Negative
+// cash on the source is a
 // warn-not-block concern: the snapshot's soft data-quality flag carries it.
 export async function appendTransfer(input: unknown, now = new Date()) {
   const value = transferInputSchema.parse(input);
@@ -408,39 +386,6 @@ export async function logRevaluation(input: unknown, now = new Date()) {
   const value = revaluationInputSchema.parse(input);
   return intentTransaction(async (tx) => {
     const row = await logRevaluationTx(tx, value, now);
-    await recomputeAndPromote(tx, now);
-    return row;
-  });
-}
-
-// Transaction-scoped primitive: one monthly-spend calibration row.
-export async function logMonthlySpendTx(
-  tx: DbTransaction,
-  value: MonthlySpendInput,
-  now: Date,
-) {
-  const currentMonth = utcDate(now).slice(0, 7);
-  if (value.month > currentMonth) {
-    throw new QuickLogInputError(
-      "monthly spend cannot be logged for a future month",
-    );
-  }
-
-  const [row] = await tx
-    .insert(monthlySpend)
-    .values({
-      month: value.month,
-      amount: value.amount,
-      note: value.note ?? null,
-    })
-    .returning();
-  return row;
-}
-
-export async function logMonthlySpend(input: unknown, now = new Date()) {
-  const value = monthlySpendInputSchema.parse(input);
-  return intentTransaction(async (tx) => {
-    const row = await logMonthlySpendTx(tx, value, now);
     await recomputeAndPromote(tx, now);
     return row;
   });

@@ -19,14 +19,32 @@ export type NwHoldingValue = {
   valueEUR: Money;
   inputs?: string[];
 };
-export type NwProperty = { id: string; value: Money; ownershipPct: Money };
-export type NwLiability = { id: string; propertyId: string | null; balance: Money };
+export type NwProperty = {
+  id: string;
+  value: Money;
+  ownershipPct: Money;
+  inputId?: string;
+};
+export type NwLiability = {
+  id: string;
+  propertyId: string | null;
+  balance: Money;
+  inputId?: string;
+};
+export type NwOtherAsset = {
+  id: string;
+  value: Money;
+  includeInNetWorth: boolean;
+  inputId?: string;
+};
 
 export type NetWorthValue = {
   liquidEUR: Money;
   investableEUR: Money;
   lockedEUR: Money;
   illiquidEUR: Money;
+  otherAssetsEUR: Money;
+  debtEUR: Money;
   totalEUR: Money;
   fireCountedEUR: Money;
   propertyEquity: { propertyId: string; equityEUR: Money }[];
@@ -40,6 +58,7 @@ export function netWorth(args: {
   holdingValues: NwHoldingValue[];
   properties: NwProperty[];
   liabilities: NwLiability[];
+  otherAssets?: NwOtherAsset[];
 }): CalcResult<NetWorthValue> {
   const {
     snapshotId,
@@ -49,6 +68,7 @@ export function netWorth(args: {
     holdingValues,
     properties,
     liabilities,
+    otherAssets = [],
   } = args;
 
   const typeById = new Map(accounts.map((a) => [a.id, a.type]));
@@ -74,27 +94,47 @@ export function netWorth(args: {
     else investable = investable.plus(value); // broker (or any non-pension) holdings
   }
 
-  // Mortgage balances by the property they encumber.
+  // Mortgage balances by the property they encumber. General loans are
+  // subtracted once from total net worth below.
   const debtByProperty = new Map<string, ReturnType<typeof dec>>();
+  let generalDebt = dec(0);
+  let totalDebt = dec(0);
   for (const l of liabilities) {
-    if (!l.propertyId) continue;
-    inputs.add(l.id);
-    debtByProperty.set(
-      l.propertyId,
-      (debtByProperty.get(l.propertyId) ?? dec(0)).plus(dec(l.balance)),
-    );
+    inputs.add(l.inputId ?? l.id);
+    totalDebt = totalDebt.plus(dec(l.balance));
+    if (l.propertyId) {
+      debtByProperty.set(
+        l.propertyId,
+        (debtByProperty.get(l.propertyId) ?? dec(0)).plus(dec(l.balance)),
+      );
+    } else {
+      generalDebt = generalDebt.plus(dec(l.balance));
+    }
   }
 
   let illiquid = dec(0);
   const propertyEquity = properties.map((p) => {
-    inputs.add(p.id);
+    inputs.add(p.inputId ?? p.id);
     const gross = dec(p.value).times(dec(p.ownershipPct)).dividedBy(100);
     const equity = gross.minus(debtByProperty.get(p.id) ?? dec(0));
     illiquid = illiquid.plus(equity);
     return { propertyId: p.id, equityEUR: equity.toFixed(2) };
   });
 
-  const total = liquid.plus(investable).plus(locked).plus(illiquid);
+  let otherAssetValue = dec(0);
+  for (const asset of otherAssets) {
+    inputs.add(asset.inputId ?? asset.id);
+    if (asset.includeInNetWorth) {
+      otherAssetValue = otherAssetValue.plus(dec(asset.value));
+    }
+  }
+
+  const total = liquid
+    .plus(investable)
+    .plus(locked)
+    .plus(illiquid)
+    .plus(otherAssetValue)
+    .minus(generalDebt);
   const fireCounted = liquid.plus(investable);
 
   return {
@@ -104,6 +144,8 @@ export function netWorth(args: {
       investableEUR: investable.toFixed(2),
       lockedEUR: locked.toFixed(2),
       illiquidEUR: illiquid.toFixed(2),
+      otherAssetsEUR: otherAssetValue.toFixed(2),
+      debtEUR: totalDebt.toFixed(2),
       totalEUR: total.toFixed(2),
       fireCountedEUR: fireCounted.toFixed(2),
       propertyEquity,

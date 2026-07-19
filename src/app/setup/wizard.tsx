@@ -72,6 +72,8 @@ type AssumptionDrafts = {
   monthlySpend: string;
   monthlySpendConservative: string;
   monthlySpendOptimistic: string;
+  monthlyNetIncome: string;
+  monthlyHousingCost: string;
   safeWithdrawalRate: string;
   expectedReturn: string;
   longRunInflation: string;
@@ -176,6 +178,8 @@ export function SetupWizard({ today }: { today: string }) {
     monthlySpend: "",
     monthlySpendConservative: "",
     monthlySpendOptimistic: "",
+    monthlyNetIncome: "",
+    monthlyHousingCost: "",
     safeWithdrawalRate: "0.035",
     expectedReturn: "0.07",
     longRunInflation: "0.02",
@@ -207,6 +211,8 @@ export function SetupWizard({ today }: { today: string }) {
       "monthlySpend",
       "monthlySpendConservative",
       "monthlySpendOptimistic",
+      "monthlyNetIncome",
+      "monthlyHousingCost",
       "safeWithdrawalRate",
       "expectedReturn",
       "longRunInflation",
@@ -1024,6 +1030,32 @@ export function SetupWizard({ today }: { today: string }) {
                 />
               </Field>
               <Field
+                label="Net monthly income"
+                htmlFor="as-income"
+                help="Optional for the current picture; useful context for later decisions."
+              >
+                <input
+                  id="as-income"
+                  inputMode="decimal"
+                  className="control"
+                  value={assumption.monthlyNetIncome}
+                  onChange={(e) => setAssumption({ ...assumption, monthlyNetIncome: e.target.value })}
+                />
+              </Field>
+              <Field
+                label="Current housing cost / month"
+                htmlFor="as-housing"
+                help="Rent, mortgage and recurring housing costs; exported separately."
+              >
+                <input
+                  id="as-housing"
+                  inputMode="decimal"
+                  className="control"
+                  value={assumption.monthlyHousingCost}
+                  onChange={(e) => setAssumption({ ...assumption, monthlyHousingCost: e.target.value })}
+                />
+              </Field>
+              <Field
                 label="Conservative monthly spend"
                 htmlFor="as-spend-cons"
                 help="Optional — produces its own runway."
@@ -1098,7 +1130,7 @@ export function SetupWizard({ today }: { today: string }) {
               <Field
                 label="Birth date"
                 htmlFor="as-birth"
-                help="Optional — lets the Ask layer reason about your age. Never sent raw anywhere else."
+                help="Optional — adds age context to the exported brief."
               >
                 <input
                   id="as-birth"
@@ -1120,7 +1152,8 @@ export function SetupWizard({ today }: { today: string }) {
             <StepIntro title="Planned events">
               Forecasts, not facts — a possible inheritance, a future house
               purchase, leaving the job. They never move today&apos;s net
-              worth; scenarios consume them. Optional, skip freely.
+              worth; they travel as context in the exported brief. Optional,
+              skip freely.
             </StepIntro>
             <div className="grid gap-4">
               {events.map((event, i) => (
@@ -1200,7 +1233,7 @@ export function SetupWizard({ today }: { today: string }) {
                         })
                       }
                     />
-                    Include in the base case (certain enough to plan on)
+                    Important context for the plan
                   </label>
                 </RowCard>
               ))}

@@ -120,6 +120,8 @@ export const ASSUMPTION_RANGES: Record<string, { min: string; max: string }> = {
   monthlySpend: { min: "0", max: "1000000" },
   monthlySpendConservative: { min: "0", max: "1000000" },
   monthlySpendOptimistic: { min: "0", max: "1000000" },
+  monthlyNetIncome: { min: "0", max: "1000000" },
+  monthlyHousingCost: { min: "0", max: "1000000" },
   lossCarryForward: { min: "0", max: "1000000000" },
   familyMinimum: { min: "0", max: "100000" },
 };

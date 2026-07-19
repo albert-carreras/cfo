@@ -8,6 +8,7 @@ import {
   marketPrices,
   monthlySpend,
   movements,
+  otherAssets,
   plannedEvents,
   properties,
   revaluations,
@@ -32,11 +33,12 @@ type FactsDatabase = Pick<Database, "select">;
 export async function loadFacts(
   database: FactsDatabase = db,
 ): Promise<FactsBundle> {
-  const [accs, holds, props, liabs, assums, movs, spend, prices, fx, lots, revals, events] =
+  const [accs, holds, props, others, liabs, assums, movs, spend, prices, fx, lots, revals, events] =
     await Promise.all([
       database.select().from(accounts),
       database.select().from(holdings),
       database.select().from(properties),
+      database.select().from(otherAssets),
       database.select().from(liabilities),
       database.select().from(assumptions),
       database.select().from(movements),
@@ -51,6 +53,7 @@ export async function loadFacts(
   const liveAccs = accs.filter((a) => !a.disposedAt);
   const liveHolds = holds.filter((h) => !h.disposedAt);
   const liveProps = props.filter((p) => !p.disposedAt);
+  const liveOtherAssets = others.filter((asset) => !asset.disposedAt);
   const liveLiabs = liabs.filter((l) => !l.disposedAt);
   const accountNameById = Object.fromEntries(accs.map((a) => [a.id, a.name]));
   const holdingNameById = Object.fromEntries(
@@ -65,6 +68,33 @@ export async function loadFacts(
   const propertyNameById = new Map(
     props.map((property) => [property.id, property.name]),
   );
+  const otherAssetNameById = new Map(
+    others.map((asset) => [asset.id, asset.name]),
+  );
+  const liabilityNameById = new Map(
+    liabs.map((liability) => [
+      liability.id,
+      liability.name ??
+        (liability.propertyId
+          ? `Mortgage · ${propertyNameById.get(liability.propertyId) ?? "property"}`
+          : liability.type),
+    ]),
+  );
+  const today = new Date().toISOString().slice(0, 10);
+  const latestObservation = (assetType: string, assetId: string) =>
+    revals
+      .filter(
+        (row) =>
+          row.assetType === assetType &&
+          row.assetId === assetId &&
+          row.valuedAt <= today,
+      )
+      .sort(
+        (a, b) =>
+          b.valuedAt.localeCompare(a.valuedAt) ||
+          b.createdAt.getTime() - a.createdAt.getTime() ||
+          b.id.localeCompare(a.id),
+      )[0] ?? null;
 
   const facts: SnapshotFacts = {
     accounts: liveAccs.map((a) => ({
@@ -97,33 +127,54 @@ export async function loadFacts(
       occurredAt: m.occurredAt,
       correctsId: m.correctsId,
     })),
-    // Dated value statements — account re-anchors only for now.
+    // Dated observations re-anchor account balances and holding quantities.
     revaluations: revals
-      .filter((r) => r.assetType === "account")
+      .filter((r) => r.assetType === "account" || r.assetType === "holding")
       .map((r) => ({
         id: r.id,
-        accountId: r.assetId,
+        accountId: r.assetType === "account" ? r.assetId : undefined,
+        holdingId: r.assetType === "holding" ? r.assetId : undefined,
         value: r.value,
         valuedAt: r.valuedAt,
         createdAt: r.createdAt.toISOString(),
       })),
-    properties: liveProps.map((p) => ({
-      id: p.id,
-      value: p.value,
-      ownershipPct: p.ownershipPct,
-      valuedAt: p.valuedAt,
-      rentMonthly: p.rentMonthly,
-      costsMonthly: p.costsMonthly,
-      isPrimaryResidence: p.isPrimaryResidence,
-      purchasePrice: p.purchasePrice,
-    })),
-    liabilities: liveLiabs.map((l) => ({
-      id: l.id,
-      propertyId: l.propertyId,
-      balance: l.balance,
-    })),
-    // Numeric assumptions feed the calculators; date-typed ones (birthDate)
-    // are read by the Ask layer directly and never enter the freshness loop.
+    properties: liveProps.map((p) => {
+      const observation = latestObservation("property", p.id);
+      return {
+        id: p.id,
+        value: observation?.value ?? p.value,
+        ownershipPct: p.ownershipPct,
+        valuedAt: observation?.valuedAt ?? p.valuedAt,
+        rentMonthly: p.rentMonthly,
+        costsMonthly: p.costsMonthly,
+        isPrimaryResidence: p.isPrimaryResidence,
+        purchasePrice: p.purchasePrice,
+        inputId: observation?.id ?? p.id,
+      };
+    }),
+    otherAssets: liveOtherAssets.map((asset) => {
+      const observation = latestObservation("other_asset", asset.id);
+      return {
+        id: asset.id,
+        value: observation?.value ?? asset.value,
+        includeInNetWorth: asset.includeInNetWorth,
+        valuedAt: observation?.valuedAt ?? asset.valuedAt,
+        inputId: observation?.id ?? asset.id,
+      };
+    }),
+    liabilities: liveLiabs.map((l) => {
+      const observation = latestObservation("liability", l.id);
+      return {
+        id: l.id,
+        propertyId: l.propertyId,
+        balance: observation?.value ?? l.balance,
+        valuedAt:
+          observation?.valuedAt ?? l.updatedAt.toISOString().slice(0, 10),
+        inputId: observation?.id ?? l.id,
+      };
+    }),
+    // Numeric assumptions feed calculators/export; date-typed ones such as
+    // birthDate stay out of the numeric freshness loop.
     assumptions: assums
       .filter((a) => a.value !== null)
       .map((a) => ({
@@ -146,8 +197,8 @@ export async function loadFacts(
       amount: r.amount,
       createdAt: r.createdAt.toISOString(),
     })),
-    // Tax basis remains relevant after a holding is disposed, even though the
-    // holding itself no longer appears in valuation.
+    // Cost basis remains useful decision context after a holding is disposed,
+    // even though the holding itself no longer appears in valuation.
     taxLots: lots.map((l) => ({
       id: l.id,
       holdingId: l.holdingId,
@@ -155,7 +206,7 @@ export async function loadFacts(
       quantity: l.quantity,
       costBasisEUR: l.costBasisEUR,
     })),
-    // Forecasts, not facts — consumed only by the scenario engine.
+    // Plans are context for the Picture/export, never today's net worth.
     plannedEvents: events.map((e) => ({
       id: e.id,
       type: e.type,
@@ -198,7 +249,17 @@ export async function loadFacts(
     ]),
     ...revals.map((reval) => [
       reval.id,
-      `${accountNameById[reval.assetId] ?? reval.assetId} revaluation · ${reval.valuedAt}`,
+      `${
+        reval.assetType === "account"
+          ? accountNameById[reval.assetId]
+          : reval.assetType === "holding"
+            ? holdingNameById[reval.assetId]
+            : reval.assetType === "property"
+              ? propertyNameById.get(reval.assetId)
+              : reval.assetType === "other_asset"
+                ? otherAssetNameById.get(reval.assetId)
+                : liabilityNameById.get(reval.assetId)
+      } observation · ${reval.valuedAt}`,
     ]),
     ...prices.map((price) => [
       price.id,
