@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { sparklinePoints } from "@/shared/sparkline";
+import { CopyExportButton } from "./CopyExportButton";
 
 function classes(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
@@ -116,6 +117,20 @@ export function SectionHeading({
   );
 }
 
+// The one header action set shared by every surface: download the Markdown
+// brief and copy it to the clipboard. Kept identical across Picture, Data and
+// History so the export affordance never depends on which page you are on.
+export function ExportActions() {
+  return (
+    <>
+      <a href="/api/export" className="button-secondary">
+        Export .md
+      </a>
+      <CopyExportButton />
+    </>
+  );
+}
+
 export function Tag({ kind }: { kind: "Verified" | "Calculated" | "Judgment" }) {
   return <span className={classes("evidence-tag", kind.toLowerCase())}>{kind}</span>;
 }
@@ -152,31 +167,38 @@ export function MetricReadout({
 // two points to connect.
 export function Sparkline({
   values,
+  caption,
   width = 120,
   height = 28,
 }: {
   values: number[];
+  // Optional one-line reading of the series (e.g. "+€14k over 18 mo") so the
+  // shape carries a scale without adding axes.
+  caption?: ReactNode;
   width?: number;
   height?: number;
 }) {
   const points = sparklinePoints(values, { width, height });
   if (!points) return null;
   return (
-    <svg
-      className="spark"
-      width={width}
-      height={height}
-      viewBox={`0 0 ${width} ${height}`}
-      preserveAspectRatio="none"
-      aria-hidden="true"
-    >
-      <polyline
-        points={points}
-        fill="none"
-        stroke="var(--ink)"
-        strokeWidth="1"
-        vectorEffect="non-scaling-stroke"
-      />
-    </svg>
+    <>
+      <svg
+        className="spark"
+        width={width}
+        height={height}
+        viewBox={`0 0 ${width} ${height}`}
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
+        <polyline
+          points={points}
+          fill="none"
+          stroke="var(--ink)"
+          strokeWidth="1"
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
+      {caption && <div className="spark-caption">{caption}</div>}
+    </>
   );
 }

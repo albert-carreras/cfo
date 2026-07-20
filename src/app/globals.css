@@ -274,6 +274,27 @@ textarea.control { min-height: 5rem; resize: vertical; }
 .event-row { display: grid; grid-template-columns: 8rem 1fr auto; gap: .65rem; align-items: baseline; padding: .5rem .1rem; border-bottom: 1px solid var(--hairline); }
 .event-row time, .mono { font-family: var(--font-mono); }
 
+/* One-line reading under a sparkline — scale without axes. */
+.spark-caption { margin-top: .2rem; color: var(--ink-soft); font: 600 .62rem/1.3 var(--font-mono); letter-spacing: .02em; }
+
+/* Property-sale disclosure inside the close table: the summary reads as a quiet
+   button, not a triangle row. */
+details.dispose-detail > summary { list-style: none; }
+details.dispose-detail > summary::-webkit-details-marker { display: none; }
+details.dispose-detail[open] > summary { border-color: var(--accent); color: #fff; background: var(--ink); }
+
+/* Folded monthly check (History): a compact one-line row that opens to the
+   observations, with the verdict's accent as a left rule. */
+.check-fold { margin-top: .4rem; border: 1px solid var(--hairline); border-left: .28rem solid var(--ink); background: #fff; }
+.check-fold.check-ok { border-left-color: var(--ok); }
+.check-fold.check-watch { border-left-color: var(--warn); }
+.check-fold.check-update { border-left-color: var(--bad); }
+.check-fold > summary { display: flex; align-items: center; gap: .6rem; padding: .45rem .6rem; cursor: pointer; font-size: .72rem; list-style: none; }
+.check-fold > summary::-webkit-details-marker { display: none; }
+.check-fold[open] > summary { border-bottom: 1px solid var(--hairline); }
+.check-fold-head { overflow: hidden; color: var(--ink-soft); text-overflow: ellipsis; white-space: nowrap; }
+.check-fold .check-list { padding: .35rem .7rem .55rem; }
+
 @media (max-width: 760px) {
   .status-strip, .metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .status-cell:nth-child(2) { border-right: 0; }

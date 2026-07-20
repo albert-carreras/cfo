@@ -23,10 +23,14 @@ import {
 } from "@/shared/assumptionKeys";
 import { isAmountTBD, isTimingUnknown } from "@/shared/plans";
 import { ACCOUNT_TYPES, PLANNED_EVENT_TYPES } from "@/shared/setup";
-import { CopyExportButton } from "../CopyExportButton";
 import { SubmitButton } from "../SubmitButton";
-import { PageShell, SectionHeading, SystemHeader, Tag } from "../ui";
+import { ExportActions, PageShell, SectionHeading, SystemHeader, Tag } from "../ui";
 import {
+  closeAccount,
+  closeHolding,
+  closeLoan,
+  closeOtherAsset,
+  closeProperty,
   completePlan,
   createAccount,
   createHolding,
@@ -36,6 +40,7 @@ import {
   createProperty,
   saveCurrentSnapshot,
   savePlanningInputs,
+  updatePlan,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -74,7 +79,12 @@ function money(value: string) {
   return `€${Number(value).toLocaleString("en-GB", { maximumFractionDigits: 0 })}`;
 }
 
-export default async function DataPage() {
+export default async function DataPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ err?: string }>;
+}) {
+  const { err } = await searchParams;
   const [
     bundle,
     accountRows,
@@ -180,45 +190,48 @@ export default async function DataPage() {
         active="data"
         title="Data"
         kicker="CFO / VERIFIED RECORD / UPDATE MODE"
-        actions={
-          <>
-            <a href="/api/export" className="button-secondary">
-              Export .md
-            </a>
-            <CopyExportButton />
-          </>
-        }
+        actions={<ExportActions />}
       />
+
+      {err && (
+        <div className="notice notice-red mt-4 text-[0.75rem]">
+          <strong>Not saved.</strong> {err}
+        </div>
+      )}
 
       <div className="status-strip">
         <div className="status-cell"><div className="microlabel">Last update</div><div className="status-value">{lastUpdate ?? "—"}</div></div>
-        <div className="status-cell"><div className="microlabel">Accounts</div><div className="status-value ok">{liveAccounts.length} live</div></div>
-        <div className="status-cell"><div className="microlabel">Assets</div><div className="status-value ok">{liveHoldings.length + liveProperties.length + liveOtherAssets.length} tracked</div></div>
+        <div className="status-cell"><div className="microlabel">Accounts</div><div className="status-value">{liveAccounts.length} live</div></div>
+        <div className="status-cell"><div className="microlabel">Assets</div><div className="status-value">{liveHoldings.length + liveProperties.length + liveOtherAssets.length} tracked</div></div>
         <div className="status-cell"><div className="microlabel">Plans</div><div className="status-value">{openEvents.length} open</div></div>
       </div>
 
       <section id="current">
         <SectionHeading action={<Tag kind="Verified" />}>Confirm the current snapshot</SectionHeading>
         <p className="mt-2 max-w-3xl text-[0.75rem] text-[var(--ink-soft)]">
-          These are dated observations, not a transaction ledger. Change what moved—or simply save the current values to confirm that the picture is still accurate. Property values are the full value; your ownership % computes your share.
+          These are dated observations, not a transaction ledger. Change what moved—or simply save the current values to confirm that the picture is still accurate. Uncheck a row to skip it, so one balance you cannot confirm today does not block the batch. Property values are the full value; your ownership % computes your share.
         </p>
         <form action={saveCurrentSnapshot} className="mt-3">
           <input type="hidden" name="observationCount" value={observations.length} />
           <div className="table-shell">
             <table className="data-table">
-              <thead><tr><th>Class</th><th>Item</th><th>Current / confirmed value</th><th>Confirmed</th></tr></thead>
+              <thead><tr><th className="w-14">Confirm</th><th>Class</th><th>Item</th><th>Current value</th><th>Confirmed</th></tr></thead>
               <tbody>
                 {observations.map((row, index) => {
                   const confirmed = confirmedByAsset.get(`${row.type}:${row.id}`) ?? row.since;
                   const stale = confirmed < staleThreshold;
                   return (
                     <tr key={`${row.type}:${row.id}`}>
+                      <td className="text-center">
+                        <input type="checkbox" name={`observation-${index}-confirm`} defaultChecked aria-label={`Confirm ${row.label}`} />
+                      </td>
                       <td className="microlabel">{row.group}</td>
                       <td>{row.label}</td>
                       <td className="w-56">
                         <input type="hidden" name={`observation-${index}-type`} value={row.type} />
                         <input type="hidden" name={`observation-${index}-id`} value={row.id} />
-                        <input className="control" name={`observation-${index}-value`} defaultValue={row.value} inputMode="decimal" required />
+                        <input className="control" name={`observation-${index}-value`} defaultValue={row.value} inputMode="decimal" />
+                        <span className="field-help mono">was {money(row.value)}</span>
                       </td>
                       <td className="fine-print" style={stale ? { color: "var(--warn)" } : undefined}>{confirmed}</td>
                     </tr>
@@ -311,6 +324,81 @@ export default async function DataPage() {
         </div>
       </section>
 
+      <section id="dispose">
+        <SectionHeading>Close or dispose</SectionHeading>
+        <p className="mt-2 max-w-3xl text-[0.75rem] text-[var(--ink-soft)]">
+          A soft-close removes an item from the live picture but keeps it in the record—nothing is ever deleted. An account must be empty and a holding fully sold before it can close; recording a property sale books the net proceeds into an account.
+        </p>
+        <div className="table-shell mt-3">
+          <table className="data-table">
+            <thead><tr><th>Class</th><th>Item</th><th className="num">Current</th><th className="w-64">Close</th></tr></thead>
+            <tbody>
+              {liveAccounts.map((row) => (
+                <tr key={row.id}>
+                  <td className="microlabel">Account</td>
+                  <td>{row.name}</td>
+                  <td className="num">{money(state.cashByAccount[row.id] ?? row.openingCash)}</td>
+                  <td>
+                    <form action={closeAccount}><input type="hidden" name="id" value={row.id} /><SubmitButton className="button-quiet" pendingLabel="Closing…">Close account</SubmitButton></form>
+                  </td>
+                </tr>
+              ))}
+              {liveHoldings.map((row) => (
+                <tr key={row.id}>
+                  <td className="microlabel">Investment</td>
+                  <td>{row.ticker ?? row.name}</td>
+                  <td className="num">{Number(state.quantityByHolding[row.id] ?? row.openingQuantity).toLocaleString("en-GB", { maximumFractionDigits: 4 })} units</td>
+                  <td>
+                    <form action={closeHolding}><input type="hidden" name="id" value={row.id} /><SubmitButton className="button-quiet" pendingLabel="Closing…">Close holding</SubmitButton></form>
+                  </td>
+                </tr>
+              ))}
+              {liveProperties.map((row) => (
+                <tr key={row.id}>
+                  <td className="microlabel">Property</td>
+                  <td>{row.name}</td>
+                  <td className="num">{money(propertyFacts.get(row.id)?.value ?? row.value)}</td>
+                  <td>
+                    <details className="dispose-detail">
+                      <summary className="button-quiet">Record sale…</summary>
+                      <form action={closeProperty} className="mt-2 grid gap-2">
+                        <input type="hidden" name="id" value={row.id} />
+                        <Field label="Net proceeds to"><select className="control" name="proceedsAccountId">{liveAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></Field>
+                        <Field label="Net proceeds (EUR)" help="Cash received after mortgage payoff and costs."><input className="control" name="amount" inputMode="decimal" required /></Field>
+                        <Field label="Sold on"><input className="control" name="occurredAt" type="date" max={today} defaultValue={today} required /></Field>
+                        <Field label="Note"><input className="control" name="note" placeholder="Optional" /></Field>
+                        <SubmitButton className="button-primary" pendingLabel="Closing…">Record sale &amp; close</SubmitButton>
+                      </form>
+                    </details>
+                  </td>
+                </tr>
+              ))}
+              {liveLiabilities.map((row) => (
+                <tr key={row.id}>
+                  <td className="microlabel">Debt</td>
+                  <td>{row.name ?? row.type}</td>
+                  <td className="num">{money(liabilityFacts.get(row.id)?.balance ?? row.balance)}</td>
+                  <td>
+                    <form action={closeLoan}><input type="hidden" name="id" value={row.id} /><SubmitButton className="button-quiet" pendingLabel="Closing…">Mark repaid</SubmitButton></form>
+                  </td>
+                </tr>
+              ))}
+              {liveOtherAssets.map((row) => (
+                <tr key={row.id}>
+                  <td className="microlabel">Other asset</td>
+                  <td>{row.name}</td>
+                  <td className="num">{money(otherFacts.get(row.id)?.value ?? row.value)}</td>
+                  <td>
+                    <form action={closeOtherAsset}><input type="hidden" name="id" value={row.id} /><SubmitButton className="button-quiet" pendingLabel="Closing…">Dispose</SubmitButton></form>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="fine-print mt-2">Repaying a loan or selling an item that is not a property? Close it here, then confirm the cash it moved in the snapshot above.</p>
+      </section>
+
       <section id="inputs">
         <SectionHeading action={<Tag kind="Verified" />}>Planning inputs</SectionHeading>
         <form action={savePlanningInputs}>
@@ -358,22 +446,40 @@ export default async function DataPage() {
       <section id="plans">
         <SectionHeading>Planned major changes</SectionHeading>
         <div className="mt-2">
-          {openEvents.length === 0 ? <p className="text-[var(--ink-soft)]">No open plans.</p> : openEvents.map((event) => (
-            <div className="event-row" key={event.id}>
-              <time>{isTimingUnknown(event.date) ? "timing unknown" : event.date}</time>
-              <div><strong>{EVENT_LABEL[event.type] ?? event.type}</strong> · {isAmountTBD(event.amount) ? "value TBD" : money(event.amount)}{event.note ? <span className="text-[var(--ink-soft)]"> · {event.note}</span> : null}</div>
-              <form action={completePlan}><input type="hidden" name="id" value={event.id} /><button className="button-quiet" type="submit">Mark as done</button></form>
-            </div>
-          ))}
-          {openEvents.length > 0 && <p className="fine-print mt-2">Mark as done once the change is reflected in the record above.</p>}
+          {openEvents.length === 0 ? <p className="text-[var(--ink-soft)]">No open plans.</p> : openEvents.map((event) => {
+            const timingUnknown = isTimingUnknown(event.date);
+            const amountTBD = isAmountTBD(event.amount);
+            return (
+              <details className="form-block" key={event.id}>
+                <summary>
+                  {EVENT_LABEL[event.type] ?? event.type} · {timingUnknown ? "timing unknown" : event.date} · {amountTBD ? "value TBD" : money(event.amount)}
+                  {event.note ? <span className="text-[var(--ink-soft)]"> · {event.note}</span> : null}
+                </summary>
+                <form action={updatePlan} className="grid gap-3 sm:grid-cols-3">
+                  <input type="hidden" name="id" value={event.id} />
+                  <Field label="Type"><select className="control" name="type" defaultValue={event.type}>{PLANNED_EVENT_TYPES.map((type) => <option key={type} value={type}>{EVENT_LABEL[type] ?? type}</option>)}</select></Field>
+                  <Field label="Expected date"><input className="control" name="date" type="date" defaultValue={timingUnknown ? "" : event.date} /></Field>
+                  <Field label="Rough amount"><input className="control" name="amount" inputMode="decimal" defaultValue={amountTBD ? "" : event.amount} /></Field>
+                  <Field label="Context"><input className="control" name="note" defaultValue={event.note ?? ""} /></Field>
+                  <label className="flex items-center gap-2 text-xs"><input type="checkbox" name="timingUnknown" defaultChecked={timingUnknown} /> Timing unknown</label>
+                  <label className="flex items-center gap-2 text-xs"><input type="checkbox" name="amountTBD" defaultChecked={amountTBD} /> Amount TBD</label>
+                  <SubmitButton className="button-primary sm:col-span-3" pendingLabel="Saving…">Save changes</SubmitButton>
+                </form>
+                <form action={completePlan} className="mt-2"><input type="hidden" name="id" value={event.id} /><button className="button-quiet" type="submit">Mark as done</button></form>
+              </details>
+            );
+          })}
+          {openEvents.length > 0 && <p className="fine-print mt-2">Open a plan to edit its date, amount or note. Mark as done once the change is reflected in the record above.</p>}
         </div>
         <details className="form-block">
           <summary>Add future plan</summary>
           <form action={createPlan} className="grid gap-3 sm:grid-cols-3">
             <Field label="Type"><select className="control" name="type">{PLANNED_EVENT_TYPES.map((type) => <option key={type} value={type}>{EVENT_LABEL[type] ?? type}</option>)}</select></Field>
-            <Field label="Expected date" help="Use 2050-01-01 if the timing is unknown."><input className="control" name="date" type="date" required /></Field>
-            <Field label="Rough amount" help="Leave 0 if the value is not yet decided."><input className="control" name="amount" inputMode="decimal" required /></Field>
+            <Field label="Expected date" help="Leave blank and check “Timing unknown” if not yet scheduled."><input className="control" name="date" type="date" /></Field>
+            <Field label="Rough amount" help="Leave blank and check “Amount TBD” if not yet decided."><input className="control" name="amount" inputMode="decimal" /></Field>
             <Field label="Context"><input className="control" name="note" placeholder="Financing not chosen yet" /></Field>
+            <label className="flex items-center gap-2 text-xs"><input type="checkbox" name="timingUnknown" /> Timing unknown</label>
+            <label className="flex items-center gap-2 text-xs"><input type="checkbox" name="amountTBD" /> Amount TBD</label>
             <SubmitButton className="button-primary sm:col-span-3" pendingLabel="Saving…">Add plan</SubmitButton>
           </form>
           <p className="fine-print mt-2">Plans are context for decisions, not modeled figures. They never move a calculated number.</p>

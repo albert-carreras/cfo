@@ -4,8 +4,11 @@ import { dataUpdates } from "@/server/db/schema";
 import { listHealthChecks } from "@/server/healthCheck";
 import { listSnapshots, storedSnapshotResult } from "@/server/snapshots";
 import { netWorthDeltaLabel } from "@/shared/history";
-import { CopyExportButton } from "../CopyExportButton";
-import { PageShell, SectionHeading, SystemHeader, Tag } from "../ui";
+import { ExportActions, PageShell, SectionHeading, SystemHeader, Tag } from "../ui";
+
+function verdictClass(verdict: string) {
+  return verdict === "ok" ? "ok" : verdict === "watch" ? "warn" : "bad";
+}
 
 export const dynamic = "force-dynamic";
 
@@ -31,28 +34,45 @@ export default async function HistoryPage() {
         active="history"
         title="History"
         kicker="CFO / AUDIT TRAIL / APPEND ONLY"
-        actions={<CopyExportButton />}
+        actions={<ExportActions />}
       />
       <div className="status-strip">
-        <div className="status-cell"><div className="microlabel">Checks</div><div className="status-value ok">{checks.length} shown</div></div>
+        <div className="status-cell"><div className="microlabel">Checks</div><div className="status-value">{checks.length} shown</div></div>
         <div className="status-cell"><div className="microlabel">Data updates</div><div className="status-value">{updates.length} shown</div></div>
         <div className="status-cell"><div className="microlabel">Snapshots</div><div className="status-value">{snapshotRows.length} shown</div></div>
         <div className="status-cell"><div className="microlabel">Last check</div><div className="status-value">{checks[0]?.createdAt.toISOString().slice(0, 10) ?? "—"}</div></div>
       </div>
 
       <SectionHeading action={<Tag kind="Judgment" />}>Monthly checks</SectionHeading>
-      {checks.length === 0 ? <p className="notice mt-2">No checks yet.</p> : checks.map((check) => {
+      {checks.length === 0 && <p className="notice mt-2">No checks yet.</p>}
+      {/* The three most recent checks stay open; older ones fold to a one-line
+          row so a year-plus of history does not stack down the page. */}
+      {checks.slice(0, 3).map((check) => {
         const report = check.report as { headline?: string; observations?: string[] } | null;
         return (
           <article className={`check-panel mt-2 check-${check.verdict}`} key={check.id}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="microlabel">{check.createdAt.toISOString().slice(0, 10)} / {check.trigger} / {check.model ?? "deterministic"}</div>
-              <span className={`status-chip ${check.verdict === "ok" ? "ok" : check.verdict === "watch" ? "warn" : "bad"}`}>{check.verdict}</span>
+              <span className={`status-chip ${verdictClass(check.verdict)}`}>{check.verdict}</span>
             </div>
             <p className="check-headline">{report?.headline ?? "Deterministic check completed."}</p>
             {report?.observations?.length ? <ul className="check-list">{report.observations.map((item) => <li key={item}>{item}</li>)}</ul> : null}
             {check.llmError && <p className="fine-print mt-2">AI note: {check.llmError}</p>}
           </article>
+        );
+      })}
+      {checks.slice(3).map((check) => {
+        const report = check.report as { headline?: string; observations?: string[] } | null;
+        return (
+          <details className={`check-fold check-${check.verdict}`} key={check.id}>
+            <summary>
+              <span className="mono">{check.createdAt.toISOString().slice(0, 10)}</span>
+              <span className={`status-chip ${verdictClass(check.verdict)}`}>{check.verdict}</span>
+              <span className="check-fold-head">{report?.headline ?? "Deterministic check completed."}</span>
+            </summary>
+            {report?.observations?.length ? <ul className="check-list">{report.observations.map((item) => <li key={item}>{item}</li>)}</ul> : null}
+            {check.llmError && <p className="fine-print mt-2 px-2 pb-2">AI note: {check.llmError}</p>}
+          </details>
         );
       })}
 

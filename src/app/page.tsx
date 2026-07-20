@@ -16,11 +16,12 @@ import {
   listSnapshots,
   storedSnapshotResult,
 } from "@/server/snapshots";
+import { netWorthDeltaLabel } from "@/shared/history";
 import { isAmountTBD, isTimingUnknown } from "@/shared/plans";
 import { checkNow } from "./actions";
-import { CopyExportButton } from "./CopyExportButton";
 import { SubmitButton } from "./SubmitButton";
 import {
+  ExportActions,
   MetricReadout,
   PageShell,
   SectionHeading,
@@ -59,6 +60,14 @@ function describeStress(params: FireBandParams): string {
   if (haircutPct > 0) parts.push(`pile −${haircutPct}%`);
   parts.push(`rate ${swrPts >= 0 ? "+" : "−"}${Math.abs(swrPts)}pt`);
   return parts.join(", ");
+}
+
+// Whole calendar months between two ISO dates, floored at zero — just enough
+// to caption the net-worth sparkline with a span.
+function monthsBetween(from: string, to: string): number {
+  const [fy, fm] = from.split("-").map(Number);
+  const [ty, tm] = to.split("-").map(Number);
+  return Math.max(0, (ty - fy) * 12 + (tm - fm));
 }
 
 function statusClass(value: "ok" | "watch" | "update") {
@@ -128,12 +137,29 @@ export default async function PicturePage() {
   const nwSeries = strategicHistory
     .map((row) => Number(storedSnapshotResult(row).netWorth.value.totalEUR))
     .reverse();
+  // Full-span reading for the sparkline: first→last change over the months it
+  // covers (strategicHistory is newest-first, so the ends are its edges).
+  const spanCaption =
+    nwSeries.length >= 2 && strategicHistory.length >= 2
+      ? `${netWorthDeltaLabel(String(nwSeries.at(-1)), String(nwSeries[0]))} over ${monthsBetween(
+          strategicHistory.at(-1)?.asOf ?? asOf,
+          strategicHistory[0]?.asOf ?? asOf,
+        )} mo`
+      : null;
   const nw = snapshot.netWorth.value;
   const fire = snapshot.fire.value;
   const baseHeadroom = fire.bands ? fireHeadroom(fire.bands.base) : null;
   const conservative = fire.bands?.conservative ?? null;
   const conservativeHeadroom = conservative ? fireHeadroom(conservative) : null;
   const data = snapshot.dataQuality.value;
+  // Movement since the last durable snapshot — the most common glance question,
+  // answered here so it does not require opening History.
+  const lastStrategicNW = latestStrategic
+    ? storedSnapshotResult(latestStrategic).netWorth.value.totalEUR
+    : null;
+  const sinceDelta = lastStrategicNW
+    ? netWorthDeltaLabel(nw.totalEUR, lastStrategicNW)
+    : null;
   const currentStatus = snapshot.status.value.status;
   const checkReport = lastCheck?.report as {
     headline?: string;
@@ -158,7 +184,7 @@ export default async function PicturePage() {
         active="picture"
         title="Picture"
         kicker={`CFO / CURRENT POSITION / ${asOf}`}
-        actions={<CopyExportButton />}
+        actions={<ExportActions />}
       />
 
       <div className="status-strip">
@@ -189,6 +215,11 @@ export default async function PicturePage() {
       </div>
 
       <SectionHeading action={<Tag kind="Calculated" />}>Position</SectionHeading>
+      {sinceDelta && latestStrategic && (
+        <p className="fine-print mt-2">
+          Net worth {sinceDelta} since the last snapshot ({latestStrategic.asOf}).
+        </p>
+      )}
       <div className="metrics-grid">
         <MetricReadout
           label="Net worth"
@@ -197,7 +228,7 @@ export default async function PicturePage() {
           note={
             <>
               Assets less recorded debt
-              <Sparkline values={nwSeries} />
+              <Sparkline values={nwSeries} caption={spanCaption} />
             </>
           }
         />

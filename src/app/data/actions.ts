@@ -2,20 +2,29 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { z } from "zod";
 import {
   addAccount,
   addHolding,
   addLoan,
   addOtherAsset,
   addProperty,
+  disposeAccount,
+  disposeHolding,
+  disposeLiability,
+  disposeOtherAsset,
+  disposeProperty,
+  ManageInputError,
   recordDataSnapshot,
   setAssumptionsAndRecompute,
 } from "@/server/manage";
 import {
   completePlannedEvent,
   createPlannedEvent,
+  updatePlannedEvent,
 } from "@/server/plannedEvents";
 import { PLANNING_INPUT_KEYS } from "@/shared/assumptionKeys";
+import { PLAN_AMOUNT_TBD, PLAN_TIMING_UNKNOWN_DATE } from "@/shared/plans";
 
 function text(form: FormData, key: string) {
   return String(form.get(key) ?? "").trim();
@@ -33,19 +42,55 @@ function done(anchor = "") {
   redirect(`/data${anchor}`);
 }
 
+// Run a write that can legitimately be rejected (a close precondition, a bad
+// value) and, on rejection, bounce back to the workspace with a readable
+// message instead of the raw Next error screen. redirect() throws internally,
+// so the success path lands in done() and the failure path re-throws its own
+// redirect — neither is caught as an input error.
+async function guard(run: () => Promise<unknown>, anchor: string) {
+  try {
+    await run();
+  } catch (error) {
+    if (error instanceof ManageInputError) {
+      redirect(`/data?err=${encodeURIComponent(error.message)}${anchor}`);
+    }
+    if (error instanceof z.ZodError) {
+      redirect(
+        `/data?err=${encodeURIComponent(error.issues[0]?.message ?? "invalid input")}${anchor}`,
+      );
+    }
+    throw error;
+  }
+  done(anchor);
+}
+
 export async function saveCurrentSnapshot(formData: FormData) {
   const count = Number(formData.get("observationCount") ?? 0);
+  // Only rows the user left confirmed (checkbox on) with a value are written.
+  // Unchecking a row skips it, so one balance you cannot confirm today no
+  // longer blocks the whole batch.
   const observations = Array.from({ length: count }, (_, index) => ({
     assetType: text(formData, `observation-${index}-type`),
     assetId: text(formData, `observation-${index}-id`),
     value: text(formData, `observation-${index}-value`),
-  }));
-  await recordDataSnapshot({
-    asOf: text(formData, "asOf"),
-    note: optional(formData, "note"),
-    observations,
-  });
-  done("#current");
+    confirmed: formData.get(`observation-${index}-confirm`) === "on",
+  }))
+    .filter((row) => row.confirmed && row.value !== "")
+    .map(({ assetType, assetId, value }) => ({ assetType, assetId, value }));
+  if (observations.length === 0) {
+    redirect(
+      `/data?err=${encodeURIComponent("Confirm at least one item, or clear its value to skip it.")}#current`,
+    );
+  }
+  await guard(
+    () =>
+      recordDataSnapshot({
+        asOf: text(formData, "asOf"),
+        note: optional(formData, "note"),
+        observations,
+      }),
+    "#current",
+  );
 }
 
 export async function createAccount(formData: FormData) {
@@ -139,17 +184,70 @@ export async function savePlanningInputs(formData: FormData) {
   done("#inputs");
 }
 
-export async function createPlan(formData: FormData) {
-  await createPlannedEvent({
+// Shared plan fields. The two sentinel checkboxes let the user say "timing
+// unknown" / "amount TBD" without remembering the magic date and zero the
+// record uses internally.
+function planFields(formData: FormData) {
+  const timingUnknown = formData.get("timingUnknown") === "on";
+  const amountTBD = formData.get("amountTBD") === "on";
+  return {
     type: text(formData, "type"),
-    date: text(formData, "date"),
-    amount: text(formData, "amount"),
+    date: timingUnknown ? PLAN_TIMING_UNKNOWN_DATE : text(formData, "date"),
+    amount: amountTBD ? PLAN_AMOUNT_TBD : text(formData, "amount"),
     note: optional(formData, "note"),
-  });
-  done("#plans");
+  };
+}
+
+export async function createPlan(formData: FormData) {
+  await guard(() => createPlannedEvent(planFields(formData)), "#plans");
+}
+
+export async function updatePlan(formData: FormData) {
+  await guard(
+    () =>
+      updatePlannedEvent({
+        plannedEventId: text(formData, "id"),
+        ...planFields(formData),
+      }),
+    "#plans",
+  );
 }
 
 export async function completePlan(formData: FormData) {
-  await completePlannedEvent(text(formData, "id"));
-  done("#plans");
+  await guard(() => completePlannedEvent(text(formData, "id")), "#plans");
+}
+
+// --- Soft-close (nothing is deleted; the item leaves the live picture) ------
+
+export async function closeAccount(formData: FormData) {
+  await guard(() => disposeAccount({ accountId: text(formData, "id") }), "#dispose");
+}
+
+export async function closeHolding(formData: FormData) {
+  await guard(() => disposeHolding({ holdingId: text(formData, "id") }), "#dispose");
+}
+
+export async function closeLoan(formData: FormData) {
+  await guard(() => disposeLiability({ liabilityId: text(formData, "id") }), "#dispose");
+}
+
+export async function closeOtherAsset(formData: FormData) {
+  await guard(
+    () => disposeOtherAsset({ otherAssetId: text(formData, "id") }),
+    "#dispose",
+  );
+}
+
+export async function closeProperty(formData: FormData) {
+  await guard(
+    () =>
+      disposeProperty({
+        propertyId: text(formData, "id"),
+        proceedsAccountId: text(formData, "proceedsAccountId"),
+        amount: text(formData, "amount"),
+        occurredAt: text(formData, "occurredAt"),
+        note: optional(formData, "note"),
+      }),
+    "#dispose",
+  );
 }

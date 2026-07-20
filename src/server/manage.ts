@@ -509,6 +509,51 @@ export async function disposeAccount(input: unknown, now = new Date()) {
   });
 }
 
+// A loan/mortgage or other asset carries no derived balance beyond its own
+// stored figure, so closing it is a plain soft-close: it leaves the live
+// picture (debt or asset drops out of net worth) but stays in history. Any
+// cash that moved to repay the loan or from selling the item is confirmed
+// separately in the snapshot flow.
+export async function disposeLiability(input: unknown, now = new Date()) {
+  const value = z.object({ liabilityId: z.string().min(1) }).parse(input);
+  return intentTransaction(async (tx) => {
+    const [liability] = await tx
+      .select()
+      .from(liabilities)
+      .where(eq(liabilities.id, value.liabilityId))
+      .limit(1);
+    if (!liability || liability.disposedAt) {
+      throw new ManageInputError("liability does not exist or is already closed");
+    }
+    await tx
+      .update(liabilities)
+      .set({ disposedAt: now })
+      .where(eq(liabilities.id, value.liabilityId));
+    await recomputeAndPromote(tx, now);
+    return liability;
+  });
+}
+
+export async function disposeOtherAsset(input: unknown, now = new Date()) {
+  const value = z.object({ otherAssetId: z.string().min(1) }).parse(input);
+  return intentTransaction(async (tx) => {
+    const [asset] = await tx
+      .select()
+      .from(otherAssets)
+      .where(eq(otherAssets.id, value.otherAssetId))
+      .limit(1);
+    if (!asset || asset.disposedAt) {
+      throw new ManageInputError("asset does not exist or is already disposed");
+    }
+    await tx
+      .update(otherAssets)
+      .set({ disposedAt: now })
+      .where(eq(otherAssets.id, value.otherAssetId));
+    await recomputeAndPromote(tx, now);
+    return asset;
+  });
+}
+
 // --- Assumptions -----------------------------------------------------------
 
 import { EDITABLE_ASSUMPTION_KEYS } from "@/shared/assumptionKeys";

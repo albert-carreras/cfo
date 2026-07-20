@@ -6,6 +6,11 @@
 // Any planned-event date on or after this reads as "timing unknown".
 export const PLAN_TIMING_UNKNOWN_FROM = "2049-01-01";
 
+// The concrete sentinels written when the user checks "timing unknown" /
+// "amount TBD" on a plan, so the UI never asks them to remember a magic value.
+export const PLAN_TIMING_UNKNOWN_DATE = "2050-01-01";
+export const PLAN_AMOUNT_TBD = "0";
+
 export function isTimingUnknown(date: string): boolean {
   return date >= PLAN_TIMING_UNKNOWN_FROM;
 }
