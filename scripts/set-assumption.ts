@@ -1,6 +1,6 @@
 // One-off assumption upsert — the non-destructive entry path for assumption
 // rows on a live database (the seed wipes everything; never run it on prod).
-// Thin CLI wrapper over src/server/assumptions.ts (the /manage form's path).
+// Thin CLI wrapper over src/server/assumptions.ts (the /inputs form's path).
 //
 //   npx tsx scripts/set-assumption.ts --key birthDate --date 1985-04-09
 //   npx tsx scripts/set-assumption.ts --key safeWithdrawalRate --value 0.035 --source "rule of thumb"

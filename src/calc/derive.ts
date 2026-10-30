@@ -66,6 +66,10 @@ export type DeriveMovement = {
   amount: Money;
   occurredAt: string;
   correctsId: string | null;
+  // ISO timestamp the row was written. Breaks the tie when a movement and a
+  // dated observation share a date: the observation already includes any
+  // movement written before it. Absent on old rows, which keep applying.
+  createdAt?: string;
 };
 
 export type DerivedState = {
@@ -124,6 +128,20 @@ function latestHoldingRevaluation(
   return latest;
 }
 
+// Where an account/holding's value is anchored: its opening baseline (start of
+// day, so same-day movements apply) or a dated observation (createdAt set).
+type Anchor = { date: string; createdAt: string | null };
+
+// A movement replays on top of its anchor when it is dated after it. On the
+// anchor's own date it applies to an opening baseline, and to an observation
+// only when it was written after that observation; an old row without
+// createdAt keeps the historical "same day applies" rule.
+function appliesAfter(movement: DeriveMovement, anchor: Anchor): boolean {
+  if (movement.occurredAt !== anchor.date) return movement.occurredAt > anchor.date;
+  if (anchor.createdAt === null || !movement.createdAt) return true;
+  return movement.createdAt > anchor.createdAt;
+}
+
 export function deriveState(args: {
   accounts: DeriveAccount[];
   holdings: DeriveHolding[];
@@ -135,8 +153,8 @@ export function deriveState(args: {
 
   const cash = new Map<string, Decimal>();
   const qty = new Map<string, Decimal>();
-  const openingByAccount = new Map<string, string>();
-  const openingByHolding = new Map<string, string>();
+  const openingByAccount = new Map<string, Anchor>();
+  const openingByHolding = new Map<string, Anchor>();
   const cashInputs = new Map<string, string[]>();
   const quantityInputs = new Map<string, string[]>();
   const inputs: string[] = [];
@@ -147,7 +165,12 @@ export function deriveState(args: {
     // up to its date, so only movements since then apply.
     const reval = latestRevaluation(revaluations, a, asOf);
     cash.set(a.id, dec(reval ? reval.value : a.openingCash));
-    openingByAccount.set(a.id, reval ? reval.valuedAt : a.openingAsOf);
+    openingByAccount.set(
+      a.id,
+      reval
+        ? { date: reval.valuedAt, createdAt: reval.createdAt }
+        : { date: a.openingAsOf, createdAt: null },
+    );
     cashInputs.set(a.id, reval ? [a.id, reval.id] : [a.id]);
     inputs.push(a.id);
     if (reval) inputs.push(reval.id);
@@ -155,7 +178,12 @@ export function deriveState(args: {
   for (const h of holdings) {
     const reval = latestHoldingRevaluation(revaluations, h, asOf);
     qty.set(h.id, dec(reval ? reval.value : h.openingQuantity));
-    openingByHolding.set(h.id, reval ? reval.valuedAt : h.openingAsOf);
+    openingByHolding.set(
+      h.id,
+      reval
+        ? { date: reval.valuedAt, createdAt: reval.createdAt }
+        : { date: h.openingAsOf, createdAt: null },
+    );
     quantityInputs.set(h.id, reval ? [h.id, reval.id] : [h.id]);
     inputs.push(h.id);
     if (reval) inputs.push(reval.id);
@@ -166,7 +194,7 @@ export function deriveState(args: {
   for (const m of applicable) {
     const accountCash = cash.get(m.accountId);
     const accountOpening = openingByAccount.get(m.accountId);
-    if (accountCash && (!accountOpening || m.occurredAt >= accountOpening)) {
+    if (accountCash && (!accountOpening || appliesAfter(m, accountOpening))) {
       cash.set(m.accountId, accountCash.plus(dec(m.amount).times(CASH_SIGN[m.type])));
       cashInputs.get(m.accountId)?.push(m.id);
       inputs.push(m.id);
@@ -179,7 +207,7 @@ export function deriveState(args: {
       if (
         holdingQty &&
         sign !== 0 &&
-        (!holdingOpening || m.occurredAt >= holdingOpening)
+        (!holdingOpening || appliesAfter(m, holdingOpening))
       ) {
         qty.set(m.holdingId, holdingQty.plus(dec(m.quantity).times(sign)));
         quantityInputs.get(m.holdingId)?.push(m.id);

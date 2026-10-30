@@ -1,204 +1,140 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import type { AttentionTarget } from "@/calc/attention";
+import { ageLabel, daysBetween, formatDate } from "@/calc/dates";
+import { dec, formatEUR, formatEURWhole, formatUnits } from "@/calc/money";
 import { sparklinePoints } from "@/shared/sparkline";
-import { CopyExportButton } from "./CopyExportButton";
+import { CopyBrief } from "./CopyBrief";
 
-function classes(...values: Array<string | false | null | undefined>) {
-  return values.filter(Boolean).join(" ");
+export const eur = (value: string | number | null | undefined) =>
+  value == null ? "—" : formatEURWhole(value);
+export const unitsText = formatUnits;
+// A unit price keeps its cents.
+export const priceText = (value: string | null | undefined) => (value == null ? "—" : formatEUR(value));
+export { formatDate };
+
+export function signedEur(value: string | number) {
+  const d = dec(value);
+  if (d.isZero()) return "±€0";
+  return `${d.isPositive() ? "+" : "−"}${formatEURWhole(d.abs())}`;
+}
+
+export function today() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 const NAV = [
-  { href: "/", label: "Picture", code: "01" },
-  { href: "/data", label: "Data", code: "02" },
-  { href: "/history", label: "History", code: "03" },
+  { href: "/", label: "Overview" },
+  { href: "/change", label: "Update" },
+  { href: "/activity", label: "Activity" },
 ] as const;
 
-export function TopBar({
-  active,
-  actions,
-}: {
-  active?: "picture" | "data" | "history";
-  actions?: ReactNode;
-}) {
+export function Header({ active }: { active?: (typeof NAV)[number]["href"] }) {
   return (
-    <header className="topbar">
-      <Link href="/" className="system-mark" aria-label="CFO home">
-        <span className="system-mark-main">CFO</span>
+    <header className="header">
+      <Link href="/" className="brand">
+        CFO
       </Link>
-      <nav className="top-tabs" aria-label="Primary">
-        {NAV.map((item) => {
-          const key = item.label.toLowerCase();
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={classes("top-tab", active === key && "active")}
-            >
-              <span>{item.code}</span> {item.label}
-            </Link>
-          );
-        })}
+      <nav className="nav" aria-label="Main">
+        {NAV.map((item) => (
+          <Link key={item.href} href={item.href} aria-current={active === item.href ? "page" : undefined}>
+            {item.label}
+          </Link>
+        ))}
       </nav>
-      <div className="top-actions">{actions}</div>
+      <div className="header-actions">
+        <CopyBrief />
+        <a href="/api/export" download className="btn btn-small">
+          .md
+        </a>
+      </div>
     </header>
   );
 }
 
-export function SystemHeader({
-  active,
-  title,
-  kicker,
-  actions,
+export function Done({ message }: { message?: string }) {
+  if (!message) return null;
+  return <p className="alert alert-good">{message}.</p>;
+}
+
+// "confirmed 3 months ago", amber once past the freshness limit.
+export function Confirmed({
+  date,
+  limitDays,
+  asOf,
+  bare = false,
 }: {
-  active: "picture" | "data" | "history";
-  title: string;
-  kicker: string;
-  actions?: ReactNode;
+  date: string;
+  limitDays: number;
+  asOf: string;
+  // Just "3 months ago", for places already labelled.
+  bare?: boolean;
 }) {
-  return (
-    <>
-      <TopBar active={active} actions={actions} />
-      <div className="system-heading">
-        <div>
-          <p className="microlabel">{kicker}</p>
-          <h1>{title}</h1>
-        </div>
-        <div className="registration" aria-hidden="true">
-          <i />
-          <span>00</span>
-        </div>
-      </div>
-    </>
-  );
+  const days = daysBetween(date, asOf);
+  const when = days <= 0 ? "today" : `${ageLabel(days)} ago`;
+  return <span className={days > limitDays ? "stale" : undefined}>{bare ? when : `confirmed ${when}`}</span>;
 }
 
-export function PageShell({
-  children,
-  narrow = false,
-  className,
-}: {
-  children: ReactNode;
-  narrow?: boolean;
-  className?: string;
-}) {
-  return (
-    <main className={classes("app-shell", narrow && "app-shell-narrow", className)}>
-      {children}
-    </main>
-  );
-}
-
-export function BrandLogo({ compact = false }: { compact?: boolean; priority?: boolean }) {
-  return (
-    <Link href="/" className={classes("brand-logo", compact && "compact")}>
-      CFO
-    </Link>
-  );
-}
-
-export function Masthead({ right }: { right?: ReactNode }) {
-  return <TopBar actions={right} />;
-}
-
-export function SectionHeading({
-  children,
-  action,
-  className,
-}: {
-  children: ReactNode;
-  action?: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={classes("section-heading", className)}>
-      <h2 className="section-title">{children}</h2>
-      {action}
-    </div>
-  );
-}
-
-// The one header action set shared by every surface: download the Markdown
-// brief and copy it to the clipboard. Kept identical across Picture, Data and
-// History so the export affordance never depends on which page you are on.
-export function ExportActions() {
-  return (
-    <>
-      <a href="/api/export" className="button-secondary">
-        Export .md
-      </a>
-      <CopyExportButton />
-    </>
-  );
-}
-
-export function Tag({ kind }: { kind: "Verified" | "Calculated" | "Judgment" }) {
-  return <span className={classes("evidence-tag", kind.toLowerCase())}>{kind}</span>;
-}
-
-export function MetricReadout({
+export function Field({
   label,
-  value,
-  note,
-  accent = false,
-  textValue = false,
-  muted = false,
+  help,
+  children,
 }: {
   label: string;
-  value: ReactNode;
-  note?: ReactNode;
-  accent?: boolean;
-  // Render the value as words, not money — smaller type for readouts like
-  // "Holds" / "Does not hold" so they don't shout at figure size.
-  textValue?: boolean;
-  // Dim the value for a non-informative zero (no other assets, no debt).
-  muted?: boolean;
+  help?: ReactNode;
+  children: ReactNode;
 }) {
   return (
-    <div className={classes("metric-readout", accent && "accent", muted && "muted")}>
-      <div className="microlabel">{label}</div>
-      <div className={classes("metric-value", textValue && "metric-value-text")}>{value}</div>
-      {note && <div className="metric-note">{note}</div>}
-    </div>
+    <label className="field">
+      <span className="field-label">{label}</span>
+      {children}
+      {help && <span className="field-help">{help}</span>}
+    </label>
   );
 }
 
-// Hairline net-worth sparkline — no axes, no labels; the piso-radar `.spark`
-// idiom. Server-rendered inline SVG. Renders nothing until there are at least
-// two points to connect.
-export function Sparkline({
-  values,
-  caption,
-  width = 120,
-  height = 28,
-}: {
-  values: number[];
-  // Optional one-line reading of the series (e.g. "+€14k over 18 mo") so the
-  // shape carries a scale without adding axes.
-  caption?: ReactNode;
-  width?: number;
-  height?: number;
-}) {
-  const points = sparklinePoints(values, { width, height });
-  if (!points) return null;
+export function NetWorthChart({ points }: { points: { asOf: string; totalEUR: number }[] }) {
+  const line = sparklinePoints(
+    points.map((p) => p.totalEUR),
+    { width: 600, height: 72, pad: 3 },
+  );
+  if (!line || points.length < 2) return null;
+  const first = points[0];
+  const last = points.at(-1)!;
+  const area = `3,72 ${line} 597,72`;
   return (
-    <>
-      <svg
-        className="spark"
-        width={width}
-        height={height}
-        viewBox={`0 0 ${width} ${height}`}
-        preserveAspectRatio="none"
-        aria-hidden="true"
-      >
+    <figure style={{ margin: 0 }}>
+      <svg className="chart" viewBox="0 0 600 72" preserveAspectRatio="none" aria-hidden="true">
+        <polygon points={area} fill="var(--accent)" opacity="0.08" />
         <polyline
-          points={points}
+          points={line}
           fill="none"
-          stroke="var(--ink)"
-          strokeWidth="1"
+          stroke="var(--accent)"
+          strokeWidth="2"
           vectorEffect="non-scaling-stroke"
         />
       </svg>
-      {caption && <div className="spark-caption">{caption}</div>}
-    </>
+      <figcaption className="chart-caption">
+        <span>{formatDate(first.asOf)}</span>
+        <span>
+          {signedEur(last.totalEUR - first.totalEUR)} over the period
+        </span>
+      </figcaption>
+    </figure>
   );
+}
+
+export function targetHref(target: AttentionTarget): string {
+  switch (target.kind) {
+    case "values":
+      return "/change?do=values";
+    case "item":
+      return `/item/${target.itemType}/${target.id}`;
+    case "tax":
+      return "/tax";
+    case "plans":
+      return "/plans";
+    case "inputs":
+      return "/inputs";
+  }
 }

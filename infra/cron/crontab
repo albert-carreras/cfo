@@ -1,13 +1,10 @@
-# Daily internal update: prices + FX -> internal snapshot -> monthly/material
-# strategic promotion. Two runs: 06:15 UTC (after US close — settled previous
-# EU closes) and 07:45 UTC (after Xetra/Euronext open at 07:00 — Yahoo's daily
-# bar rolls to today, so the home's price freshness shows the same day). The
-# route is idempotent; the second run refreshes market_prices and the live
-# home view while the day's internal snapshot stays deduped. The cron
-# container reaches the app by its service name on the private Compose network.
+# Daily feed: prices + FX -> today's snapshot. Two runs: 06:15 UTC (after the
+# US close, settled previous EU closes) and 07:45 UTC (after Xetra/Euronext
+# open, so the overview shows the same day). Idempotent. The cron container
+# reaches the app by its service name on the private Compose network.
 15 6 * * * wget -qO- http://app:3222/api/cron/daily || echo "cfo daily update failed"
 45 7 * * * wget -qO- http://app:3222/api/cron/daily || echo "cfo daily update failed"
 
-# Monthly CFO check: a narrow qualitative read over deterministic metrics.
-# First of the month after the daily update; re-hits dedupe by month.
-45 8 1 * * wget -qO- http://app:3222/api/cron/check || echo "cfo monthly check failed"
+# Monthly push (ntfy): how net worth moved last month and what needs you.
+# First of the month after the daily feed; re-hits dedupe by month.
+45 8 1 * * wget -qO- http://app:3222/api/cron/monthly || echo "cfo monthly digest failed"

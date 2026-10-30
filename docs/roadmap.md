@@ -1,29 +1,24 @@
 # Roadmap
 
-The useful product is intentionally small. Add convenience only when repeated real use justifies
-it; do not rebuild an in-app advice chat or speculative calculator suite.
+Add convenience only when real use asks for it.
 
 ## Shipped
 
-- A compact soft-close flow (**Data → Close or dispose**) for sold property, closed
-  accounts/holdings, repaid loans and disposed other assets.
-- Batch-update ergonomics: each row shows its last-confirmed date and prior value, and a per-row
-  confirm checkbox lets an unknown balance be skipped without blocking the batch.
-- Editable plans with "timing unknown" / "amount TBD" checkboxes in place of remembered sentinels.
-- Copy-to-clipboard alongside the Markdown download, offered uniformly on every surface.
+- Event-based updates: sold, bought, moved money, update balances, add, close.
+- Realised gains with FIFO cost basis and Spain's savings-scale tax, deducted until paid.
+- One-page overview with an attention list, net-worth chart and spending line.
+- Monthly push replacing the monthly AI check.
 
-## Near-term candidates
+## Candidates
 
-- Summarize the net-worth delta before a snapshot save is committed.
-- Import a bank/broker statement as reviewable observations, never as opaque truth.
-- A document vault for statements/deeds linked to observations.
-- A small export-preview page.
-- Concentration look-through only if it becomes decision-relevant.
+- Import a broker statement (T212, DEGIRO, Robinhood CSV) as reviewable sales/purchases.
+- Interest and dividends in the tax estimate.
+- Loss carry-forwards between years.
+- Free-text entry ("sold all VVSM for 124k into T212") parsed into a change you confirm.
 
-## Explicit non-goals
+## Non-goals
 
-- An Ask/chat page.
-- Mortgage, tax, property-sale or trade scenario calculators.
-- Regulatory/news research and market commentary.
-- Daily transaction or monthly spending bookkeeping as an engagement habit.
-- Automated actions or recommendations to buy/sell.
+- In-app advice or chat.
+- Mortgage, property-sale or trade scenario calculators.
+- Market commentary.
+- Transaction-level bookkeeping of daily spending.

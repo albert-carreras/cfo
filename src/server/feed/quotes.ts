@@ -78,6 +78,7 @@ export async function fetchQuote(symbol: string): Promise<Quote> {
   const res = await fetch(url, {
     cache: "no-store",
     headers: { "User-Agent": "Mozilla/5.0 (cfo personal feed)" },
+    signal: AbortSignal.timeout(10_000),
   });
   if (!res.ok) throw new Error(`quote ${symbol}: HTTP ${res.status}`);
   return parseQuote(await res.json(), symbol);

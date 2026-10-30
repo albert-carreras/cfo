@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "CFO",
-  description: "A trusted current financial record and monthly check.",
+  description: "Personal financial record: what you own, what changed, what needs you.",
   icons: {
     icon: [
       { url: "/favicon.ico" },
@@ -22,7 +22,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="min-h-screen antialiased">{children}</body>
+      <body>{children}</body>
     </html>
   );
 }

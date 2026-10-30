@@ -2,13 +2,16 @@ import { dec, type Money } from "./money";
 import type { CalcResult } from "./types";
 import { VERSIONS } from "./config/versions";
 
-// Buckets net worth by account type + property equity. Pure.
-//   liquid     = bank + manual cash
-//   investable = broker cash + broker holdings
-//   locked     = pension cash + pension holdings (not counted in base FIRE)
-//   illiquid   = property equity (value × ownership − mortgage balance)
-//   fireCounted= liquid + investable (excludes locked + any inflow not in the
-//                base case — e.g. an inheritance is never in base FIRE)
+// Buckets net worth the way a person reads it. Pure.
+//   cash        = cash in every non-pension account (bank, savings, broker cash)
+//   investments = securities held in non-pension accounts
+//   pension     = pension cash + pension securities (locked)
+//   property    = owned share of each property − its linked mortgage
+//   other       = other assets explicitly included
+//   taxDue      = estimated tax on realised gains not yet paid
+//   total       = all of the above − general (non-mortgage) debt − taxDue
+//   available   = cash + investments − general debt − taxDue: what a
+//                 spending plan can actually draw on
 
 export type AccountType = "bank" | "broker" | "pension" | "manual";
 
@@ -39,14 +42,15 @@ export type NwOtherAsset = {
 };
 
 export type NetWorthValue = {
-  liquidEUR: Money;
-  investableEUR: Money;
-  lockedEUR: Money;
-  illiquidEUR: Money;
+  cashEUR: Money;
+  investmentsEUR: Money;
+  pensionEUR: Money;
+  propertyEquityEUR: Money;
   otherAssetsEUR: Money;
-  debtEUR: Money;
+  debtEUR: Money; // gross: mortgages + general loans
+  taxDueEUR: Money;
   totalEUR: Money;
-  fireCountedEUR: Money;
+  availableEUR: Money;
   propertyEquity: { propertyId: string; equityEUR: Money }[];
 };
 
@@ -59,6 +63,8 @@ export function netWorth(args: {
   properties: NwProperty[];
   liabilities: NwLiability[];
   otherAssets?: NwOtherAsset[];
+  taxDueEUR?: Money;
+  taxInputs?: string[];
 }): CalcResult<NetWorthValue> {
   const {
     snapshotId,
@@ -69,33 +75,33 @@ export function netWorth(args: {
     properties,
     liabilities,
     otherAssets = [],
+    taxDueEUR = "0",
+    taxInputs = [],
   } = args;
 
   const typeById = new Map(accounts.map((a) => [a.id, a.type]));
-  const inputs = new Set<string>();
+  const inputs = new Set<string>(taxInputs);
 
-  let liquid = dec(0);
-  let investable = dec(0);
-  let locked = dec(0);
+  let cash = dec(0);
+  let investments = dec(0);
+  let pension = dec(0);
 
   for (const a of accounts) {
     for (const id of cashInputsByAccount[a.id] ?? [a.id]) inputs.add(id);
-    const cash = dec(cashByAccount[a.id] ?? 0);
-    if (a.type === "bank" || a.type === "manual") liquid = liquid.plus(cash);
-    else if (a.type === "broker") investable = investable.plus(cash);
-    else if (a.type === "pension") locked = locked.plus(cash);
+    const balance = dec(cashByAccount[a.id] ?? 0);
+    if (a.type === "pension") pension = pension.plus(balance);
+    else cash = cash.plus(balance);
   }
 
   for (const hv of holdingValues) {
     for (const id of hv.inputs ?? [hv.holdingId]) inputs.add(id);
-    const type = typeById.get(hv.accountId);
     const value = dec(hv.valueEUR);
-    if (type === "pension") locked = locked.plus(value);
-    else investable = investable.plus(value); // broker (or any non-pension) holdings
+    if (typeById.get(hv.accountId) === "pension") pension = pension.plus(value);
+    else investments = investments.plus(value);
   }
 
-  // Mortgage balances by the property they encumber. General loans are
-  // subtracted once from total net worth below.
+  // Mortgages reduce their property's equity; general loans come off the
+  // total once.
   const debtByProperty = new Map<string, ReturnType<typeof dec>>();
   let generalDebt = dec(0);
   let totalDebt = dec(0);
@@ -112,43 +118,44 @@ export function netWorth(args: {
     }
   }
 
-  let illiquid = dec(0);
-  const propertyEquity = properties.map((p) => {
+  let propertyEquity = dec(0);
+  const perProperty = properties.map((p) => {
     inputs.add(p.inputId ?? p.id);
-    const gross = dec(p.value).times(dec(p.ownershipPct)).dividedBy(100);
-    const equity = gross.minus(debtByProperty.get(p.id) ?? dec(0));
-    illiquid = illiquid.plus(equity);
+    const share = dec(p.value).times(dec(p.ownershipPct)).dividedBy(100);
+    const equity = share.minus(debtByProperty.get(p.id) ?? dec(0));
+    propertyEquity = propertyEquity.plus(equity);
     return { propertyId: p.id, equityEUR: equity.toFixed(2) };
   });
 
-  let otherAssetValue = dec(0);
+  let other = dec(0);
   for (const asset of otherAssets) {
     inputs.add(asset.inputId ?? asset.id);
-    if (asset.includeInNetWorth) {
-      otherAssetValue = otherAssetValue.plus(dec(asset.value));
-    }
+    if (asset.includeInNetWorth) other = other.plus(dec(asset.value));
   }
 
-  const total = liquid
-    .plus(investable)
-    .plus(locked)
-    .plus(illiquid)
-    .plus(otherAssetValue)
-    .minus(generalDebt);
-  const fireCounted = liquid.plus(investable);
+  const taxDue = dec(taxDueEUR);
+  const total = cash
+    .plus(investments)
+    .plus(pension)
+    .plus(propertyEquity)
+    .plus(other)
+    .minus(generalDebt)
+    .minus(taxDue);
+  const available = cash.plus(investments).minus(generalDebt).minus(taxDue);
 
   return {
     snapshotId,
     value: {
-      liquidEUR: liquid.toFixed(2),
-      investableEUR: investable.toFixed(2),
-      lockedEUR: locked.toFixed(2),
-      illiquidEUR: illiquid.toFixed(2),
-      otherAssetsEUR: otherAssetValue.toFixed(2),
+      cashEUR: cash.toFixed(2),
+      investmentsEUR: investments.toFixed(2),
+      pensionEUR: pension.toFixed(2),
+      propertyEquityEUR: propertyEquity.toFixed(2),
+      otherAssetsEUR: other.toFixed(2),
       debtEUR: totalDebt.toFixed(2),
+      taxDueEUR: taxDue.toFixed(2),
       totalEUR: total.toFixed(2),
-      fireCountedEUR: fireCounted.toFixed(2),
-      propertyEquity,
+      availableEUR: available.toFixed(2),
+      propertyEquity: perProperty,
     },
     source: VERSIONS.netWorth.source,
     version: VERSIONS.netWorth.version,

@@ -1,43 +1,48 @@
 # Data model
 
-## Verified structure
+## Things you own
 
-- `accounts` — bank, broker, pension or manual container with a dated opening balance.
-- `holdings` — security identity, account, dated opening quantity and optional feed ticker.
-- `properties` — value, ownership, purchase context, rent/cost context and valuation date.
-- `other_assets` — vehicles, businesses, collectibles or other context; explicitly included or
-  excluded from planning net worth.
-- `liabilities` — mortgages linked to property or general loans.
-- `assumptions` — dated planning inputs such as spending, withdrawal rate, income and housing cost.
-- `planned_events` — future context only; never counted in present net worth.
+- `accounts` — bank/savings, broker, pension or cash, with a dated opening balance.
+- `holdings` — an investment in an account: name, ticker (the Yahoo symbol, also the price key in
+  `isin` for new rows), dated opening units.
+- `tax_lots` — purchases: date, units, total cost. FIFO cost basis for sales comes from these.
+- `properties` — full value, your share, purchase price, rent/costs, valuation date.
+- `liabilities` — mortgages (linked to a property) and loans.
+- `other_assets` — cars and similar, counted in net worth only when marked.
+- `assumptions` — planning inputs: monthly spend, safe withdrawal rate, income, housing cost,
+  birth date. Each has a reviewed date.
+- `planned_events` — plans. Context only. A date from 2049 means "timing unknown", amount 0 means
+  "amount TBD".
 
-Facts are soft-closed with `disposedAt` where applicable.
+Closed things get `disposedAt`; nothing is deleted.
 
-## Dated observations
+## What changes them
 
-`revaluations` is the generic append-only value stream for accounts, holding quantities,
-properties, liabilities and other assets. A Data workspace save writes one observation per live
-item. `data_updates` groups those rows into a readable human event with an as-of date and note.
+- `movements` — append-only cash and unit changes: deposit, withdraw, buy, sell, transfer. A
+  transfer is two rows sharing `transferGroupId`. Written by the sell/buy/move/tax flows.
+- `revaluations` — append-only dated observations ("this balance is X on date D") for accounts,
+  holding units, properties, debts and other assets.
 
-For accounts and holdings, the latest dated observation re-anchors the baseline and later legacy
-movements replay after it. Property, debt and other-asset observations replace the earlier stated
-value for current calculations.
+Current state of an account or holding = its latest observation (or opening balance) plus the
+movements after it. On the observation's own date, only movements written after the observation
+apply, so confirming a balance and then logging something the same day never double counts.
 
-## Automatic evidence
+## Sales and tax
 
-- `market_prices` — dated security prices.
-- `fx_rates` — dated EUR conversion rates.
-- `snapshots` — immutable calculated JSON; `internal` for daily history, `strategic` for durable
-  checkpoints.
+- `sales` — one row per sale: holding, date, units, net proceeds, cost basis (FIFO, or entered by
+  hand), `voidedAt` when entered by mistake.
+- `tax_settlements` — a year's tax marked paid. While a year has none, its estimate is deducted
+  from net worth.
 
-## AI check
+## Computed and logged
 
-`health_checks` stores trigger, dedupe key, snapshot id, deterministic summary, final verdict,
-validated qualitative report, model provenance and any provider error. The row remains useful when
-`report` is null because the deterministic floor is always present.
+- `market_prices`, `fx_rates` — dated feed rows.
+- `snapshots` — one computed snapshot per day (jsonb).
+- `data_updates` — the activity log: `kind`, `title`, readable `changes` lines and a note. Rows
+  from before the log existed hold raw observations; the activity page resolves their names.
+- `settings` — small app flags, e.g. `digest:YYYY-MM` once the monthly push went out.
 
-## Retained legacy records
+## Retired, kept as archive
 
-`movements`, `monthly_spend`, `tax_lots`, `checks`, `decisions`, `reviews` and `pictures` predate the
-simplified product. Movements and lots are still read for compatibility/export. The other legacy
-tables are archival and must not be silently deleted.
+`health_checks` (the old monthly AI check), `decisions`, `reviews`, `pictures`, `checks` and
+`monthly_spend` are not read by anything and stay untouched.

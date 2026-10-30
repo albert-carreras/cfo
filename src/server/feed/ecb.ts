@@ -40,7 +40,7 @@ export function eurPerUnit(daily: EcbDaily, quote: string): string | null {
 }
 
 export async function fetchEcbDaily(): Promise<EcbDaily> {
-  const res = await fetch(ECB_DAILY_URL, { cache: "no-store" });
+  const res = await fetch(ECB_DAILY_URL, { cache: "no-store", signal: AbortSignal.timeout(10_000) });
   if (!res.ok) throw new Error(`ECB fetch failed: HTTP ${res.status}`);
   return parseEcbDailyXml(await res.text());
 }

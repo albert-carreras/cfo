@@ -71,6 +71,13 @@
       "when": 1784469993868,
       "tag": "0009_military_sue_storm",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793348393545,
+      "tag": "0010_marvelous_warhawk",
+      "breakpoints": true
     }
   ]
 }

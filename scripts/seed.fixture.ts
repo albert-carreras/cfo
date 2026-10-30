@@ -100,12 +100,11 @@ export type Fixture = {
     // Optional so a pre-existing seed.local.ts still type-checks.
     transferGroupId?: string | null;
   }[];
-  // Dated value statements: the account re-anchors to the latest one
-  // (value = statement + movements since its date). Optional — absent means
-  // every account derives from its opening baseline.
+  // Dated observations: an account balance or holding's units re-anchor to the
+  // latest one (value = observation + movements since). Optional.
   revaluations?: {
     id: string;
-    assetType: "account";
+    assetType: "account" | "holding" | "property" | "liability" | "other_asset";
     assetId: string;
     value: string;
     valuedAt: string;
@@ -145,13 +144,16 @@ export function toSnapshotFacts(data: Fixture): SnapshotFacts {
       (a): a is (typeof data.assumptions)[number] & { value: string } =>
         a.value !== null,
     ),
-    revaluations: (data.revaluations ?? []).map((reval) => ({
-      id: reval.id,
-      accountId: reval.assetId,
-      value: reval.value,
-      valuedAt: reval.valuedAt,
-      createdAt: reval.createdAt,
-    })),
+    revaluations: (data.revaluations ?? [])
+      .filter((reval) => reval.assetType === "account" || reval.assetType === "holding")
+      .map((reval) => ({
+        id: reval.id,
+        accountId: reval.assetType === "account" ? reval.assetId : undefined,
+        holdingId: reval.assetType === "holding" ? reval.assetId : undefined,
+        value: reval.value,
+        valuedAt: reval.valuedAt,
+        createdAt: reval.createdAt,
+      })),
   };
 }
 
@@ -190,17 +192,8 @@ export const fixture: Fixture = {
 
   assumptions: [
     { id: "assum_swr", key: "safeWithdrawalRate", value: "0.035", source: "rule of thumb (3.5%)", lastReviewedAt: BASELINE },
-    // The coarse spend assumption — the source of truth for FIRE /
-    // runway; the monthly_spend rows below are optional calibration only.
+    // The coarse spend assumption behind the safe-spending line.
     { id: "assum_spend", key: "monthlySpend", value: "3200", source: "user (coarse annual figure)", lastReviewedAt: BASELINE },
-    { id: "assum_spend_cons", key: "monthlySpendConservative", value: "3600", source: "user (coarse annual figure)", lastReviewedAt: BASELINE },
-    { id: "assum_spend_opt", key: "monthlySpendOptimistic", value: "2800", source: "user (coarse annual figure)", lastReviewedAt: BASELINE },
-    // fire.v2 contract: expectedReturn is the NOMINAL long-run return;
-    // longRunInflation is the forecast it pairs with. The `inflation` row is
-    // the ECB-fed OBSERVATION, kept for calibration and never consumed.
-    { id: "assum_return", key: "expectedReturn", value: "0.07", source: "long-run nominal portfolio estimate", lastReviewedAt: BASELINE },
-    { id: "assum_lri", key: "longRunInflation", value: "0.02", source: "user forecast", lastReviewedAt: BASELINE },
-    { id: "assum_inflation", key: "inflation", value: "0.02", source: "feed:ecb", lastReviewedAt: BASELINE },
     // Date-typed: exported as age context, never a calculator input.
     { id: "assum_birth", key: "birthDate", value: null, dateValue: "1988-07-14", source: "user", lastReviewedAt: BASELINE },
   ],

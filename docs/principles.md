@@ -1,54 +1,37 @@
 # Principles
 
-## 1. A reliable record beats another financial chatbot
+## 1. Easy to keep up to date beats clever
 
-General AI products are already the best place for open-ended decisions. CFO earns its place by
-maintaining the compact, dated, trustworthy context those conversations otherwise lack.
+The record is only useful if it is current. Updating follows life, not the database: "I sold my
+semis" is one form that does everything the sale implies. Blank means unchanged. Every input reads
+"124,000", "124.000" and "124k".
 
-## 2. Three epistemic categories stay separate
+## 2. Every number is verified or calculated
 
-- **Verified** — a value entered, confirmed or imported.
-- **Calculated** — a deterministic result derived from verified facts.
-- **Judgment** — a qualitative interpretation from the model or a rule of thumb.
+Verified: entered or confirmed by you, or fetched from the price/FX feed. Calculated: a pure,
+versioned, tested function of verified facts. Nothing is guessed: a missing price counts as zero
+and says so, an unknown cost basis is left out of the tax estimate and says so.
 
-Labels are not decoration. Never present Judgment as a computed fact or a model-written number as
-personal evidence.
+## 3. Today's position, plans and tax are different things
 
-## 3. Current position, future plans and data readiness are different signals
-
-“The current position is okay” does not mean “the planned house is affordable.” An open plan is
-context only. The Picture names all three states separately.
+A plan (a house next year, an inheritance) is context for decisions and never moves a number.
+Tax owed on this year's sales is a real liability, so it is deducted until it is paid.
 
 ## 4. Coarse maintenance is a feature
 
-The record needs material accuracy, not a perfect transaction diary. Market prices update
-automatically. A human confirms balances and quantities occasionally or after a major event. Small
-cash drift should not turn the product into bookkeeping.
+Prices update automatically. Balances need confirming a few times a year; the overview says which
+ones are getting old. Small drift doesn't matter.
 
-## 5. Observations are dated and append-only
+## 5. Nothing is deleted
 
-A batch confirmation adds a new observation; it does not erase the previous one. Current state is
-the latest observation plus any retained ledger activity after it. Facts are soft-closed.
+Movements and observations are append-only. Closed things leave the overview and stay in the
+record. Every change leaves one readable entry in the activity log.
 
-## 6. Calculators compute; the model checks
+## 6. Decisions happen elsewhere
 
-Net worth, asset buckets, runway, safe spending, freshness and concentration are pure, versioned
-calculators. The monthly model receives a summary only, uses no tools or web, writes no digits and
-may only strengthen the deterministic warning level.
+The app has no advice and no AI. For a real decision, copy the brief into a ChatGPT/Claude chat.
+The brief carries dates, gaps and instructions so that conversation stays honest.
 
-## 7. Silence should mean something
+## 7. Quiet by default
 
-The daily feed stays underneath the surface. The scheduled check runs monthly. Notifications are
-coarse. There is no market commentary, regulatory watch, ticker tape or engagement loop.
-
-## 8. The handoff must be honest
-
-The Markdown pack carries values, source dates, assumptions, plans and missing decision-critical
-facts. It tells the receiving AI not to silently assume income, financing, tax treatment or sale
-proceeds.
-
-## 9. The interface is a personal system, not fintech theater
-
-Use the piso-radar visual language: Japanese early-2000s technical print, compact information
-architecture, tabular numerals, squared controls and restrained vermillion. Avoid glossy cards,
-gradients, motivational copy and decorative noise.
+One push a month, plus one if the daily feed dies. No market commentary, no streaks.

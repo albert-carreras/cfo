@@ -1,45 +1,61 @@
 # Input
 
-## Initial setup
+Everything starts from **Something happened** (`/change`) or from an item's own page.
 
-Enter the structural facts once: accounts, investments, properties and mortgages, other material
-assets, loans, and core planning inputs. A feed ticker enables automatic market pricing; no ticker
-is allowed only with explicit acknowledgement.
+## Sold an investment
 
-## Ordinary maintenance
+Pick it, leave units blank to sell all of it, type what you received after fees (several orders?
+add them up and use the last date), and say where the money is now:
 
-Use **Data → Confirm the current snapshot**. The form shows every live balance, investment
-quantity, property value, debt balance and other-asset value, each with its last-confirmed date.
-Edit what changed, choose the as-of date, add a short note if useful, and save the batch. Every row
-is confirmed by default; uncheck a row to skip it so one balance you cannot confirm today does not
-block the rest.
+- **Still in the broker account** — broker cash goes up.
+- **Another account** — the cash is moved there in the same step.
+- **Leave balances alone** — only the units go down; use this when you already set the balances.
 
-This is intentionally not a transaction workflow. If cash rose by an immaterial amount and that
-precision does not change any decision, update it at the next natural checkpoint.
+An account added after the sale date already contains the money, so nothing is moved into it.
+The sale stores its FIFO cost basis, shows the gain and the year's running tax estimate, and
+closes the position when nothing is left. A sale dated before the units were last confirmed is
+refused (that confirmation already includes it); use the confirmation date, the tax year is what
+matters.
 
-## Major events
+## Bought an investment
 
-- **Bought a house:** add the property and optional mortgage; then confirm the affected cash and
-  investment values in the snapshot form. Mark an existing house plan reflected only after the
-  actual facts are present.
-- **Received an inheritance:** add the asset actually received, or confirm the account/investment
-  where it landed. Do not keep it as a future plan after it is in current facts.
-- **Bought a car:** add it as an other asset if it is useful context. Cars default to excluded from
-  planning net worth. Add a loan separately if applicable and confirm the cash used.
-- **Sold or closed something:** use **Data → Close or dispose**. An account must be empty and a
-  holding fully sold before it closes; recording a property sale books the net proceeds into an
-  account. Repaid loans and disposed other assets soft-close directly — then confirm the cash they
-  moved in the snapshot form. Everything is soft-closed and stays in the record; nothing is deleted.
+More of something you hold, or "Something new" (account, ticker, name). Paid with cash in that
+account, another account (moved first) or "leave balances alone". Each purchase adds a lot for
+future cost basis.
 
-## Planning inputs
+## Moved money
 
-Spending and the safe-withdrawal rate drive the independence metrics. Income and current housing
-cost exist primarily so a decision conversation has the missing affordability context. All inputs
-carry a reviewed date and source.
+Between two of your accounts. Both sides in one step.
 
-## Plans
+## Update balances
 
-A plan has type, rough date, magnitude and context. It never changes current net worth or runway.
-The receiving AI decides how to model it after asking for missing terms. Open a plan in **Data →
-Planned major changes** to edit its type, date, amount or note; "Timing unknown" and "Amount TBD"
-checkboxes record the sentinels so no magic date or zero has to be remembered.
+Every balance, unit count, property value, debt and other asset on one page, each showing the
+current figure. Type only what changed; blank rows stay as they are. Prices update by themselves.
+
+## Opened or got something
+
+Account (cash only), investment you already hold (units and what they cost), property (with an
+optional mortgage), loan or mortgage, car or other.
+
+## Closing things
+
+Open the item:
+
+- **Account** — needs no investments left. A remaining balance either moves to another account or
+  is set to zero.
+- **Investment** — "Remove without a sale" for a position that moved broker. A real sale goes
+  through "Sold".
+- **Property** — record net proceeds and where they went; the property and its mortgage close.
+- **Debt** — mark repaid, optionally paid from an account.
+- **Other** — remove, optionally with the money received.
+
+## Tax
+
+`/tax` lists each year's sales. Fix a sale's cost basis, remove a sale entered by mistake, and
+mark the year paid (optionally from an account) once the return is settled.
+
+## Plans and spending
+
+`/plans` records big expected changes; close one once the real change is recorded. `/inputs`
+holds monthly spend, safe withdrawal rate (type 3.5% or 0.035), income, housing cost and birth
+date.

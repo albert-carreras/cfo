@@ -161,6 +161,24 @@ describe("deriveState", () => {
     expect(result.cashInputsByAccount["a"]).not.toContain("r1");
   });
 
+  it("on an observation's own date, applies only movements written after it", () => {
+    const result = deriveState({
+      accounts,
+      holdings,
+      movements: [
+        // Written before the balance was confirmed: already inside it.
+        mov({ id: "early", type: "deposit", amount: "40", occurredAt: "2026-04-01", createdAt: "2026-04-01T08:00:00.000Z" }),
+        // Logged after confirming the balance the same day: applies on top.
+        mov({ id: "late", type: "deposit", amount: "7", occurredAt: "2026-04-01", createdAt: "2026-04-01T18:00:00.000Z" }),
+      ],
+      revaluations: [reval({ id: "r", value: "300", valuedAt: "2026-04-01", createdAt: "2026-04-01T12:00:00.000Z" })],
+      asOf: "2026-06-01",
+    });
+
+    expect(result.cashByAccount["a"]).toBe("307.00");
+    expect(result.cashInputsByAccount["a"]).not.toContain("early");
+  });
+
   it("applies account and holding opening baselines independently", () => {
     const result = deriveState({
       accounts,

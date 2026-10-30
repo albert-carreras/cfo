@@ -6,88 +6,78 @@ import {
   holdings,
   liabilities,
   marketPrices,
-  monthlySpend,
   movements,
   otherAssets,
   plannedEvents,
   properties,
   revaluations,
+  sales,
   taxLots,
+  taxSettlements,
 } from "./db/schema";
 import type { SnapshotFacts } from "@/calc/snapshot";
 
-// Reads the Brain and maps DB rows into the pure calculator input shape. Disposed
-// facts (soft-closed) stop counting; the ledger is read whole. This is the only
-// I/O boundary between Postgres and the deterministic core.
-
-export type FactsBundle = {
-  facts: SnapshotFacts;
-  accountNameById: Record<string, string>;
-  holdingNameById: Record<string, string>;
-  propertyNameById: Record<string, string>;
-  sourceLabelById: Record<string, string>;
-};
+// The only I/O boundary between Postgres and the trust core: reads the record
+// and maps rows into the pure calculator input. Closed (soft-closed) items
+// stop counting; voided sales and tax payments are ignored. The raw rows ride
+// along for screens that need names and details.
 
 type FactsDatabase = Pick<Database, "select">;
 
 export async function loadFacts(
   database: FactsDatabase = db,
-): Promise<FactsBundle> {
-  const [accs, holds, props, others, liabs, assums, movs, spend, prices, fx, lots, revals, events] =
-    await Promise.all([
-      database.select().from(accounts),
-      database.select().from(holdings),
-      database.select().from(properties),
-      database.select().from(otherAssets),
-      database.select().from(liabilities),
-      database.select().from(assumptions),
-      database.select().from(movements),
-      database.select().from(monthlySpend),
-      database.select().from(marketPrices),
-      database.select().from(fxRates),
-      database.select().from(taxLots),
-      database.select().from(revaluations),
-      database.select().from(plannedEvents),
-    ]);
+  asOf = new Date().toISOString().slice(0, 10),
+) {
+  const [
+    accountRows,
+    holdingRows,
+    propertyRows,
+    otherRows,
+    liabilityRows,
+    assumptionRows,
+    movementRows,
+    priceRows,
+    fxRows,
+    lotRows,
+    revaluationRows,
+    planRows,
+    saleRows,
+    settlementRows,
+  ] = await Promise.all([
+    database.select().from(accounts),
+    database.select().from(holdings),
+    database.select().from(properties),
+    database.select().from(otherAssets),
+    database.select().from(liabilities),
+    database.select().from(assumptions),
+    database.select().from(movements),
+    database.select().from(marketPrices),
+    database.select().from(fxRates),
+    database.select().from(taxLots),
+    database.select().from(revaluations),
+    database.select().from(plannedEvents),
+    database.select().from(sales),
+    database.select().from(taxSettlements),
+  ]);
 
-  const liveAccs = accs.filter((a) => !a.disposedAt);
-  const liveHolds = holds.filter((h) => !h.disposedAt);
-  const liveProps = props.filter((p) => !p.disposedAt);
-  const liveOtherAssets = others.filter((asset) => !asset.disposedAt);
-  const liveLiabs = liabs.filter((l) => !l.disposedAt);
-  const accountNameById = Object.fromEntries(accs.map((a) => [a.id, a.name]));
-  const holdingNameById = Object.fromEntries(
-    holds.map((h) => [h.id, h.ticker ?? h.name]),
-  );
-  const holdingNameByIsin = new Map(
-    holds.map((holding) => [
-      holding.isin,
-      holding.ticker ?? holding.name,
-    ]),
-  );
-  const propertyNameById = new Map(
-    props.map((property) => [property.id, property.name]),
-  );
-  const otherAssetNameById = new Map(
-    others.map((asset) => [asset.id, asset.name]),
-  );
-  const liabilityNameById = new Map(
-    liabs.map((liability) => [
-      liability.id,
-      liability.name ??
-        (liability.propertyId
-          ? `Mortgage · ${propertyNameById.get(liability.propertyId) ?? "property"}`
-          : liability.type),
-    ]),
-  );
-  const today = new Date().toISOString().slice(0, 10);
+  const liveAccounts = accountRows.filter((row) => !row.disposedAt);
+  const liveHoldings = holdingRows.filter((row) => !row.disposedAt);
+  const liveProperties = propertyRows.filter((row) => !row.disposedAt);
+  const liveOther = otherRows.filter((row) => !row.disposedAt);
+  const liveLiabilities = liabilityRows.filter((row) => !row.disposedAt);
+  const liveSales = saleRows.filter((row) => !row.voidedAt);
+  const liveSettlements = settlementRows.filter((row) => !row.voidedAt);
+  const propertyNameById = new Map(propertyRows.map((row) => [row.id, row.name]));
+
+  // Latest dated observation of a property / debt / other asset on or before
+  // asOf; it supersedes the stated value.
   const latestObservation = (assetType: string, assetId: string) =>
-    revals
+    revaluationRows
       .filter(
         (row) =>
           row.assetType === assetType &&
           row.assetId === assetId &&
-          row.valuedAt <= today,
+          row.valuedAt <= asOf,
       )
       .sort(
         (a, b) =>
@@ -97,193 +87,147 @@ export async function loadFacts(
       )[0] ?? null;
 
   const facts: SnapshotFacts = {
-    accounts: liveAccs.map((a) => ({
-      id: a.id,
-      type: a.type,
-      name: a.name,
-      openingCash: a.openingCash,
-      openingAsOf: a.openingAsOf,
+    accounts: liveAccounts.map((row) => ({
+      id: row.id,
+      type: row.type,
+      name: row.name,
+      openingCash: row.openingCash,
+      openingAsOf: row.openingAsOf,
     })),
-    holdings: liveHolds.map((h) => ({
-      id: h.id,
-      accountId: h.accountId,
-      isin: h.isin,
-      openingQuantity: h.openingQuantity,
-      openingAsOf: h.openingAsOf,
+    holdings: liveHoldings.map((row) => ({
+      id: row.id,
+      accountId: row.accountId,
+      isin: row.isin,
+      name: row.ticker ?? row.name,
+      openingQuantity: row.openingQuantity,
+      openingAsOf: row.openingAsOf,
     })),
-    accountOpeningAsOf: Object.fromEntries(
-      accs.map((account) => [account.id, account.openingAsOf]),
-    ),
-    holdingOpeningAsOf: Object.fromEntries(
-      holds.map((holding) => [holding.id, holding.openingAsOf]),
-    ),
-    movements: movs.map((m) => ({
-      id: m.id,
-      type: m.type,
-      accountId: m.accountId,
-      holdingId: m.holdingId,
-      quantity: m.quantity,
-      amount: m.amount,
-      occurredAt: m.occurredAt,
-      correctsId: m.correctsId,
+    movements: movementRows.map((row) => ({
+      id: row.id,
+      type: row.type,
+      accountId: row.accountId,
+      holdingId: row.holdingId,
+      quantity: row.quantity,
+      amount: row.amount,
+      occurredAt: row.occurredAt,
+      correctsId: row.correctsId,
+      createdAt: row.createdAt.toISOString(),
     })),
-    // Dated observations re-anchor account balances and holding quantities.
-    revaluations: revals
-      .filter((r) => r.assetType === "account" || r.assetType === "holding")
-      .map((r) => ({
-        id: r.id,
-        accountId: r.assetType === "account" ? r.assetId : undefined,
-        holdingId: r.assetType === "holding" ? r.assetId : undefined,
-        value: r.value,
-        valuedAt: r.valuedAt,
-        createdAt: r.createdAt.toISOString(),
+    revaluations: revaluationRows
+      .filter((row) => row.assetType === "account" || row.assetType === "holding")
+      .map((row) => ({
+        id: row.id,
+        accountId: row.assetType === "account" ? row.assetId : undefined,
+        holdingId: row.assetType === "holding" ? row.assetId : undefined,
+        value: row.value,
+        valuedAt: row.valuedAt,
+        createdAt: row.createdAt.toISOString(),
       })),
-    properties: liveProps.map((p) => {
-      const observation = latestObservation("property", p.id);
+    properties: liveProperties.map((row) => {
+      const observation = latestObservation("property", row.id);
       return {
-        id: p.id,
-        value: observation?.value ?? p.value,
-        ownershipPct: p.ownershipPct,
-        valuedAt: observation?.valuedAt ?? p.valuedAt,
-        rentMonthly: p.rentMonthly,
-        costsMonthly: p.costsMonthly,
-        isPrimaryResidence: p.isPrimaryResidence,
-        purchasePrice: p.purchasePrice,
-        inputId: observation?.id ?? p.id,
+        id: row.id,
+        name: row.name,
+        value: observation?.value ?? row.value,
+        ownershipPct: row.ownershipPct,
+        valuedAt: observation?.valuedAt ?? row.valuedAt,
+        rentMonthly: row.rentMonthly,
+        costsMonthly: row.costsMonthly,
+        isPrimaryResidence: row.isPrimaryResidence,
+        purchasePrice: row.purchasePrice,
+        inputId: observation?.id ?? row.id,
       };
     }),
-    otherAssets: liveOtherAssets.map((asset) => {
-      const observation = latestObservation("other_asset", asset.id);
+    otherAssets: liveOther.map((row) => {
+      const observation = latestObservation("other_asset", row.id);
       return {
-        id: asset.id,
-        value: observation?.value ?? asset.value,
-        includeInNetWorth: asset.includeInNetWorth,
-        valuedAt: observation?.valuedAt ?? asset.valuedAt,
-        inputId: observation?.id ?? asset.id,
+        id: row.id,
+        name: row.name,
+        value: observation?.value ?? row.value,
+        includeInNetWorth: row.includeInNetWorth,
+        valuedAt: observation?.valuedAt ?? row.valuedAt,
+        inputId: observation?.id ?? row.id,
       };
     }),
-    liabilities: liveLiabs.map((l) => {
-      const observation = latestObservation("liability", l.id);
+    liabilities: liveLiabilities.map((row) => {
+      const observation = latestObservation("liability", row.id);
       return {
-        id: l.id,
-        propertyId: l.propertyId,
-        balance: observation?.value ?? l.balance,
-        valuedAt:
-          observation?.valuedAt ?? l.updatedAt.toISOString().slice(0, 10),
-        inputId: observation?.id ?? l.id,
+        id: row.id,
+        name:
+          row.name ??
+          (row.propertyId
+            ? `Mortgage · ${propertyNameById.get(row.propertyId) ?? "property"}`
+            : "Loan"),
+        propertyId: row.propertyId,
+        balance: observation?.value ?? row.balance,
+        valuedAt: observation?.valuedAt ?? row.createdAt.toISOString().slice(0, 10),
+        inputId: observation?.id ?? row.id,
       };
     }),
-    // Numeric assumptions feed calculators/export; date-typed ones such as
-    // birthDate stay out of the numeric freshness loop.
-    assumptions: assums
-      .filter((a) => a.value !== null)
-      .map((a) => ({
-        id: a.id,
-        key: a.key,
-        value: a.value as string,
-        lastReviewedAt: a.lastReviewedAt,
+    // Numeric assumptions only; date-typed ones (birth date) are context.
+    assumptions: assumptionRows
+      .filter((row) => row.value !== null)
+      .map((row) => ({
+        id: row.id,
+        key: row.key,
+        value: row.value as string,
+        lastReviewedAt: row.lastReviewedAt,
       })),
-    prices: prices.map((p) => ({
-      id: p.id,
-      isin: p.isin,
-      price: p.price,
-      currency: p.currency,
-      asOf: p.asOf,
+    prices: priceRows.map((row) => ({
+      id: row.id,
+      isin: row.isin,
+      price: row.price,
+      currency: row.currency,
+      asOf: row.asOf,
     })),
-    fx: fx.map((f) => ({ id: f.id, quote: f.quote, rate: f.rate, asOf: f.asOf })),
-    monthlySpend: spend.map((r) => ({
-      id: r.id,
-      month: r.month,
-      amount: r.amount,
-      createdAt: r.createdAt.toISOString(),
+    fx: fxRows.map((row) => ({ id: row.id, quote: row.quote, rate: row.rate, asOf: row.asOf })),
+    taxLots: lotRows.map((row) => ({
+      id: row.id,
+      holdingId: row.holdingId,
+      buyDate: row.buyDate,
+      quantity: row.quantity,
+      costBasisEUR: row.costBasisEUR,
     })),
-    // Cost basis remains useful decision context after a holding is disposed,
-    // even though the holding itself no longer appears in valuation.
-    taxLots: lots.map((l) => ({
-      id: l.id,
-      holdingId: l.holdingId,
-      buyDate: l.buyDate,
-      quantity: l.quantity,
-      costBasisEUR: l.costBasisEUR,
+    sales: liveSales.map((row) => ({
+      id: row.id,
+      holdingId: row.holdingId,
+      soldAt: row.soldAt,
+      quantity: row.quantity,
+      proceedsEUR: row.proceedsEUR,
+      costBasisEUR: row.costBasisEUR,
     })),
-    // Plans are context for the Picture/export, never today's net worth.
-    plannedEvents: events.map((e) => ({
-      id: e.id,
-      type: e.type,
-      date: e.date,
-      amount: e.amount,
-      probability: e.probability,
-      includedInBaseCase: e.includedInBaseCase,
-      realisedAt: e.realisedAt ? e.realisedAt.toISOString() : null,
+    taxSettlements: liveSettlements.map((row) => ({
+      id: row.id,
+      year: row.year,
+      paidAt: row.paidAt,
+      amountEUR: row.amountEUR,
+    })),
+    plannedEvents: planRows.map((row) => ({
+      id: row.id,
+      type: row.type,
+      date: row.date,
+      amount: row.amount,
+      realisedAt: row.realisedAt ? row.realisedAt.toISOString() : null,
     })),
   };
-
-  const sourceLabelById = Object.fromEntries([
-    ...accs.map((account) => [
-      account.id,
-      `${account.name} opening balance · ${account.openingAsOf}`,
-    ]),
-    ...holds.map((holding) => [
-      holding.id,
-      `${holding.ticker ?? holding.name} opening quantity · ${holding.openingAsOf}`,
-    ]),
-    ...movs.map((movement) => [
-      movement.id,
-      `${movement.type} · ${accountNameById[movement.accountId] ?? movement.accountId} · ${movement.occurredAt}`,
-    ]),
-    ...props.map((property) => [
-      property.id,
-      `${property.name} valuation · ${property.valuedAt}`,
-    ]),
-    ...liabs.map((liability) => [
-      liability.id,
-      `${liability.type}${liability.propertyId ? ` · ${propertyNameById.get(liability.propertyId) ?? liability.propertyId}` : ""} · ${liability.updatedAt.toISOString().slice(0, 10)}`,
-    ]),
-    ...assums.map((assumption) => [
-      assumption.id,
-      `${assumption.key} · reviewed ${assumption.lastReviewedAt}`,
-    ]),
-    ...spend.map((row) => [
-      row.id,
-      `Monthly spending · ${row.month}`,
-    ]),
-    ...revals.map((reval) => [
-      reval.id,
-      `${
-        reval.assetType === "account"
-          ? accountNameById[reval.assetId]
-          : reval.assetType === "holding"
-            ? holdingNameById[reval.assetId]
-            : reval.assetType === "property"
-              ? propertyNameById.get(reval.assetId)
-              : reval.assetType === "other_asset"
-                ? otherAssetNameById.get(reval.assetId)
-                : liabilityNameById.get(reval.assetId)
-      } observation · ${reval.valuedAt}`,
-    ]),
-    ...prices.map((price) => [
-      price.id,
-      `${holdingNameByIsin.get(price.isin) ?? price.isin} price · ${price.asOf}`,
-    ]),
-    ...fx.map((rate) => [
-      rate.id,
-      `EUR per ${rate.quote} FX · ${rate.asOf}`,
-    ]),
-    ...lots.map((lot) => [
-      lot.id,
-      `${holdingNameById[lot.holdingId] ?? lot.holdingId} opening tax lot · ${lot.buyDate}`,
-    ]),
-    ...events.map((event) => [
-      event.id,
-      `planned ${event.type} · ${event.date}`,
-    ]),
-  ]);
 
   return {
     facts,
-    accountNameById,
-    holdingNameById,
-    propertyNameById: Object.fromEntries(propertyNameById),
-    sourceLabelById,
+    rows: {
+      accounts: accountRows,
+      holdings: holdingRows,
+      properties: propertyRows,
+      otherAssets: otherRows,
+      liabilities: liabilityRows,
+      assumptions: assumptionRows,
+      movements: movementRows,
+      revaluations: revaluationRows,
+      taxLots: lotRows,
+      plans: planRows,
+      sales: saleRows,
+      settlements: settlementRows,
+    },
   };
 }
+
+export type FactsBundle = Awaited<ReturnType<typeof loadFacts>>;

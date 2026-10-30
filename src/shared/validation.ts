@@ -36,3 +36,30 @@ export const isoDate = z
 export const monthString = z
   .string()
   .regex(/^\d{4}-(0[1-9]|1[0-2])$/, "must be YYYY-MM");
+
+// Forgiving number entry: "124,000", "124.000", "€124k", "1 234,5" all read
+// as intended. Comma groups of three digits are thousands; a dot is a
+// thousands separator only for money (1.500 units is one and a half).
+// Returns the input untouched when it can't be read, so the schema reports it.
+export function normalizeNumberInput(raw: string, kind: "money" | "units" = "money"): string {
+  let text = raw.trim().replace(/[\s€]/g, "");
+  if (text === "") return "";
+  let multiplier = 1;
+  if (kind === "money" && /k$/i.test(text)) {
+    multiplier = 1000;
+    text = text.slice(0, -1);
+  }
+  const lastDot = text.lastIndexOf(".");
+  const lastComma = text.lastIndexOf(",");
+  if (lastDot >= 0 && lastComma >= 0) {
+    const decimal = lastDot > lastComma ? "." : ",";
+    const thousands = decimal === "." ? "," : ".";
+    text = text.split(thousands).join("").replace(decimal, ".");
+  } else if (lastComma >= 0) {
+    text = /^\d{1,3}(,\d{3})+$/.test(text) ? text.replace(/,/g, "") : text.replace(",", ".");
+  } else if (lastDot >= 0 && kind === "money" && /^\d{1,3}(\.\d{3})+$/.test(text)) {
+    text = text.replace(/\./g, "");
+  }
+  if (!/^\d+(\.\d+)?$/.test(text)) return raw.trim();
+  return multiplier === 1 ? text : (Number(text) * multiplier).toString();
+}

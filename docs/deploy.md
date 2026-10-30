@@ -138,8 +138,8 @@ failure. Use a browser session for the complete authenticated path.
 
 A tiny `cron` sidecar hits `http://app:3222/api/cron/daily` over the private Compose network at
 06:15 UTC (settled previous EU closes, after the US close) and 07:45 UTC (after Xetra/Euronext
-open). Each run fetches live holding prices and ECB FX, writes an internal snapshot, and promotes a
-strategic snapshot on month rollover or material change. The route is idempotent.
+open). Each run fetches live holding prices and ECB FX and stores today's snapshot. The route is
+idempotent.
 
 To run it manually without exposing the cron route:
 
@@ -148,14 +148,13 @@ curl http://127.0.0.1:3222/api/cron/daily   # on au
 ./stack logs prod cron
 ```
 
-A holding's `ticker` is its feed symbol (`VWCE.DE`, plain `SMH`, and so on). A missing or wrong
-ticker is reported by the route and eventually makes data quality stale; it never silently retains
-an indefinitely old valuation. Tickers are facts: fix them in `scripts/seed.local.ts` only when
-re-seeding anyway (which wipes the ledger); otherwise update the row directly on `au`.
+A holding's `ticker` is its Yahoo Finance symbol (`VWCE.DE`, plain `AAPL`, and so on). A missing
+or wrong ticker shows on the overview's attention list after a few days; it never silently keeps
+an old valuation. Fix it on the investment's page.
 
-After the feed, the sidecar hits `/api/cron/check` on the first day of each month. The route
-deduplicates scheduled runs by month and stores a deterministic result even when the model is
-unavailable. Run it manually with `curl http://127.0.0.1:3222/api/cron/check`.
+After the feed, the sidecar hits `/api/cron/monthly` on the first day of each month: one ntfy push
+about the month that ended. It dedupes by month. Run it manually with
+`curl http://127.0.0.1:3222/api/cron/monthly`.
 
 ## Seeding prod (one-time / rare)
 
@@ -167,7 +166,7 @@ the one-shot seed container:
 ```
 
 The seed is destructive: it wipes every table and reloads from `seed.local.ts`. Anything recorded
-in production but absent from the file is lost. Day-to-day maintenance belongs in `/data`; seed
+in production but absent from the file is lost. Day-to-day maintenance belongs in the app; seed
 only for the initial slow-moving fact load and back up first.
 
 ## Backups

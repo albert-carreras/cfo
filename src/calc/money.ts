@@ -45,27 +45,18 @@ export function formatEUR(value: Numeric): string {
   return eurFormatter.format(dec(value).toNumber());
 }
 
-// Coarse by design: the calm surface thinks in years and percent,
-// not euros — a ±€1,000/month imprecision must not matter anywhere it is shown.
-// Full precision stays in the calculators and the provenance depth; only the
-// presentation coarsens.
-
-const eurCoarseFormatter = new Intl.NumberFormat("en-IE", {
+const eurWholeFormatter = new Intl.NumberFormat("en-IE", {
   style: "currency",
   currency: "EUR",
   maximumFractionDigits: 0,
 });
 
-// Three significant figures (net worth lands on the nearest ~€1k).
-export function formatEURCoarse(value: Numeric): string {
-  const d = dec(value);
-  const rounded = d.isZero() ? d : d.toSignificantDigits(3);
-  return eurCoarseFormatter.format(rounded.toNumber());
+// Whole euros: what every screen shows. Cents stay in the stored figures.
+export function formatEURWhole(value: Numeric): string {
+  return eurWholeFormatter.format(dec(value).toNumber());
 }
 
-// Runway is presented in years: one decimal under a decade (where the next
-// review can still hinge on it), whole years above.
-export function formatYearsCoarse(years: number): string {
-  const rounded = years < 10 ? years.toFixed(1) : String(Math.round(years));
-  return `${rounded} years`;
+// Units of a security: grouped, up to 6 decimals, no trailing zeros.
+export function formatUnits(value: Numeric): string {
+  return dec(value).toNumber().toLocaleString("en-GB", { maximumFractionDigits: 6 });
 }

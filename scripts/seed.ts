@@ -10,7 +10,7 @@ import {
   type Fixture,
 } from "./seed.fixture";
 import { db } from "../src/server/db";
-import { computeSnapshot } from "../src/calc/snapshot";
+import { computeSnapshot, snapshotStatus } from "../src/calc/snapshot";
 import {
   accounts,
   assumptions,
@@ -30,9 +30,11 @@ import {
   properties,
   revaluations,
   reviews,
+  sales,
   settings,
   snapshots,
   taxLots,
+  taxSettlements,
 } from "../src/server/db/schema";
 
 // Loads real data from a git-ignored scripts/seed.local.ts when present,
@@ -76,7 +78,6 @@ async function main() {
   const snap = computeSnapshot({
     snapshotId: createId(),
     asOf,
-    reviewDue: false,
     facts: toSnapshotFacts(fixture),
   });
 
@@ -98,6 +99,8 @@ async function main() {
     await tx.delete(fxRates);
     await tx.delete(marketPrices);
     await tx.delete(movements);
+    await tx.delete(sales);
+    await tx.delete(taxSettlements);
     await tx.delete(plannedEvents);
     await tx.delete(taxLots);
     await tx.delete(liabilities);
@@ -139,14 +142,14 @@ async function main() {
     if (fixture.plannedEvents?.length)
       await tx.insert(plannedEvents).values(fixture.plannedEvents);
 
-    // Pin an initial strategic snapshot so the home screen has a reference point.
+    // A first snapshot so the net-worth chart has a starting point.
     await tx.insert(snapshots).values({
       id: snap.snapshotId,
-      kind: "strategic",
-      status: snap.status.value.status,
+      kind: "internal",
+      status: snapshotStatus(snap),
       result: snap,
       asOf,
-      dedupeKey: `strategic:${asOf}`,
+      dedupeKey: `internal:${asOf}`,
       computedAt: new Date(asOf),
     });
   });

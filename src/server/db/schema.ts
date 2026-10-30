@@ -243,6 +243,54 @@ export const revaluations = pgTable(
   ],
 );
 
+// A security sale: what left, what came in, and the FIFO cost basis frozen at
+// the time, so the year's realised gain and tax stay reproducible. A mistaken
+// entry is voided, never deleted.
+export const sales = pgTable(
+  "sales",
+  {
+    id: id(),
+    holdingId: text("holding_id")
+      .notNull()
+      .references(() => holdings.id),
+    soldAt: date("sold_at").notNull(),
+    quantity: money("quantity").notNull(),
+    // Net of fees: what actually landed.
+    proceedsEUR: money("proceeds_eur").notNull(),
+    // Null when the purchase lots did not cover the sale and none was entered.
+    costBasisEUR: money("cost_basis_eur"),
+    // "fifo" (from the purchase lots) or "manual" (entered by hand).
+    costBasisSource: text("cost_basis_source").notNull().default("fifo"),
+    note: text("note"),
+    voidedAt: timestamp("voided_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("sales_holding_idx").on(t.holdingId),
+    check("sales_quantity_positive", sql`${t.quantity} > 0`),
+    check("sales_proceeds_not_negative", sql`${t.proceedsEUR} >= 0`),
+  ],
+);
+
+// The tax for a year's sales has been paid: its estimate stops being deducted.
+export const taxSettlements = pgTable(
+  "tax_settlements",
+  {
+    id: id(),
+    year: integer("year").notNull(),
+    paidAt: date("paid_at").notNull(),
+    amountEUR: money("amount_eur").notNull(),
+    note: text("note"),
+    voidedAt: timestamp("voided_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("tax_settlements_year_idx")
+      .on(t.year)
+      .where(sql`${t.voidedAt} is null`),
+  ],
+);
+
 // --- The append-only movement ledger (the thing you feed) ---
 
 export const movements = pgTable(
@@ -379,6 +427,10 @@ export const dataUpdates = pgTable(
   {
     id: id(),
     asOf: date("as_of").notNull(),
+    // What happened ("sell", "move", "values", …) and its one-line
+    // description. Null on rows written before the activity log existed.
+    kind: text("kind"),
+    title: text("title"),
     note: text("note"),
     changes: jsonb("changes").notNull(),
     snapshotId: text("snapshot_id").references(() => snapshots.id, {

@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "./db";
 import { assumptions } from "./db/schema";
-import type { DbTransaction } from "./quicklog";
+import type { DbTransaction } from "./write";
 import { isoDate } from "@/shared/validation";
 
 // The non-destructive assumption entry path for a live database. Assumptions

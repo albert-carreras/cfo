@@ -1,32 +1,21 @@
 # CFO
 
-A personal financial record that answers two quiet questions:
+A personal financial record that stays easy to keep up to date.
 
-1. What is my position now, and does it still look okay?
-2. Is my data ready to take into a serious decision conversation?
+- **Overview** — net worth with a year of history, what needs you, cash / investments / pension /
+  property, whether your spending fits what your cash and investments can safely pay, and
+  everything you own with how old each value is.
+- **Something happened** — record events the way they happen: sold an investment (units out, cash
+  in, gain and tax worked out), bought one, moved money, new balances, opened or closed something.
+- **Tax on sales** — FIFO cost basis and Spain's savings scale give the tax to keep aside for each
+  year's sales. It is deducted from net worth until you mark the year paid.
+- **Export** — one Markdown brief with dated facts, calculated figures and known gaps, for a
+  ChatGPT or Claude project when a real decision comes up.
+- **Automation** — daily prices and FX, and one monthly push: how net worth moved and what needs
+  you.
 
-CFO keeps verified accounts, investments, property, other assets, debt and planning inputs. Pure
-calculators produce the current Picture and preserve provenance. A narrow monthly AI check adds a
-short qualitative note. For decisions—buying a house, changing work, handling an inheritance—the
-app exports an up-to-date Markdown context pack for a ChatGPT or Claude project.
-
-It deliberately has no in-app Ask chat, mortgage wizard, tax-advice engine, transaction-heavy
-workflow or generated financial essay.
-
-## Product
-
-- **Picture** — net worth, liquidity, investable assets, property equity, debt, runway, data state,
-  open plans and latest CFO check.
-- **Data** — confirm all current values as one dated observation; add an account, investment,
-  property/mortgage, car/other asset or loan; maintain assumptions and plans.
-- **History** — human updates, strategic snapshots and checks.
-- **Export** — one Markdown file containing verified facts, calculated metrics, dates, gaps and
-  instructions that preserve the evidence boundaries in an external AI conversation.
-- **Automation** — daily price/FX refresh and one idempotent monthly check using `gpt-5.6-sol` by
-  default. Without an API key, the deterministic product still works.
-
-Every personal number is **Verified** or **Calculated**. Model prose is **Judgment** and is not
-allowed to contain figures.
+Every number is verified (entered, confirmed or fetched) or calculated by tested code. There is no
+AI in the app and no advice.
 
 ## Run locally
 
@@ -42,8 +31,8 @@ npm run dev
 `npm run test:ci` is the local gate. The seed command is destructive and uses the committed
 synthetic fixture unless a git-ignored `scripts/seed.local.ts` exists.
 
-Start with [docs/principles.md](docs/principles.md) and [CLAUDE.md](CLAUDE.md). Production details
-are in [docs/deploy.md](docs/deploy.md).
+Start with [CLAUDE.md](CLAUDE.md) and [docs/principles.md](docs/principles.md). Production
+details are in [docs/deploy.md](docs/deploy.md).
 
 ## License
 

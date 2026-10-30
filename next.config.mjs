@@ -11,6 +11,16 @@ const nextConfig = {
   turbopack: {
     root: projectRoot,
   },
+  // Pages from the previous layout, so old bookmarks still land somewhere.
+  async redirects() {
+    return [
+      { source: "/data", destination: "/change", permanent: false },
+      { source: "/history", destination: "/activity", permanent: false },
+      { source: "/setup", destination: "/", permanent: false },
+      { source: "/manage", destination: "/change", permanent: false },
+      { source: "/detail", destination: "/", permanent: false },
+    ];
+  },
 };
 
 export default nextConfig;
