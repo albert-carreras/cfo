@@ -178,12 +178,18 @@ function AccountItem({ account, o }: { account: Overview["accounts"][number]; o:
           <input type="hidden" name="id" value={account.id} />
           {!dec(account.cashEUR).isZero() && (
             <Field
-              label={`It still shows ${eur(account.cashEUR)}. Where did that go?`}
-              help="Pick the account it moved to, or set it to zero if the figure was out of date."
+              label={`It still shows ${eur(account.cashEUR)}. What happened to it?`}
+              help="If you already typed the other account's current balance, the money is counted there: pick the first option."
             >
               <select name="moveTo" className="input" defaultValue="">
-                <option value="">Nowhere: set it to €0</option>
-                <OtherAccounts o={o} except={account.id} />
+                <option value="">Already counted elsewhere, or spent: set to €0</option>
+                {o.accounts
+                  .filter((row) => row.id !== account.id && row.type !== "pension")
+                  .map((row) => (
+                    <option key={row.id} value={row.id}>
+                      Add it to {row.name} ({eur(row.cashEUR)} now)
+                    </option>
+                  ))}
               </select>
             </Field>
           )}
