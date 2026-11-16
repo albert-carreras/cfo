@@ -51,12 +51,13 @@ If code contradicts a doc, update the doc in the same change.
 - `/api/export` — the Markdown brief. `/api/cron/daily` — prices, FX, today's snapshot.
   `/api/cron/monthly` — the monthly push.
 
-The UI is phone-first and wears a retro desktop skin from `src/app/globals.css`: a wallpaper,
-one metal window per page (title bar, logo strip, button row as the main nav), dark LCD panels for
-the data and a taskbar with a menu of every page. Panels look the same in both themes; the
-wallpaper and window metal switch between day and night. The equalizer in the logo strip is
-decoration; the summary's equalizer bars and the spending meter are only shapes of figures shown
-next to them as text.
+The UI is phone-first and wears a retro skin from `src/app/globals.css`, in one theme only: a
+Windows XP desktop (wallpaper, desktop shortcuts, Luna taskbar whose Start menu lists every page)
+and, on it, one window per page styled like a classic media-player skin (ribbed title bars, grey
+transport buttons as the main nav, black LCD panels with green text). Icons are real Windows XP
+artwork in `public/xp/` (Microsoft's, not under this repo's license; see its NOTICE). The
+visualizer in the window's LCD is decoration; the summary's equalizer sliders and the spending
+meter are only shapes of figures shown next to them as text.
 
 ## Stack and commands
 

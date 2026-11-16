@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
-import { Icon } from "./icons";
+import { XpIcon, type XpIconName } from "./icons";
 import { Taskbar } from "./Taskbar";
 
 export const metadata: Metadata = {
@@ -18,6 +18,15 @@ export const metadata: Metadata = {
   manifest: "/site.webmanifest",
 };
 
+const DESKTOP: { href: string; label: string; icon: XpIconName; download?: boolean }[] = [
+  { href: "/", label: "Overview", icon: "my-computer" },
+  { href: "/tax", label: "Tax", icon: "calculator" },
+  { href: "/plans", label: "Plans", icon: "scheduled-tasks" },
+  { href: "/inputs", label: "Inputs", icon: "control-panel" },
+  { href: "/activity", label: "Activity", icon: "event-viewer" },
+  { href: "/api/export", label: "Brief.md", icon: "notepad", download: true },
+];
+
 export default function RootLayout({
   children,
 }: {
@@ -29,26 +38,19 @@ export default function RootLayout({
         <div className="desktop">
           {/* Shortcuts on the wallpaper, shown when the screen is wide enough. */}
           <nav className="desk-icons" aria-label="Shortcuts">
-            <Link href="/tax" className="desk-icon">
-              <Icon name="tax" />
-              Tax
-            </Link>
-            <Link href="/plans" className="desk-icon">
-              <Icon name="folder" />
-              Plans
-            </Link>
-            <Link href="/inputs" className="desk-icon">
-              <Icon name="folder" />
-              Inputs
-            </Link>
-            <Link href="/activity" className="desk-icon">
-              <Icon name="folder" />
-              Activity
-            </Link>
-            <a href="/api/export" download className="desk-icon">
-              <Icon name="doc" />
-              Brief.md
-            </a>
+            {DESKTOP.map((item) =>
+              item.download ? (
+                <a key={item.href} href={item.href} download className="desk-icon">
+                  <XpIcon name={item.icon} />
+                  {item.label}
+                </a>
+              ) : (
+                <Link key={item.href} href={item.href} className="desk-icon">
+                  <XpIcon name={item.icon} />
+                  {item.label}
+                </Link>
+              ),
+            )}
           </nav>
           <div className="desk-main">{children}</div>
         </div>
