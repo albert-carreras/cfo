@@ -3,7 +3,7 @@ import { loadOverview } from "@/server/overview";
 import { PLAN_TYPES, planLabel } from "@/shared/plans";
 import { completePlanAction, savePlanAction } from "../actions";
 import { ActionForm, Submit } from "../ActionForm";
-import { Done, eur, Field, formatDate, Header } from "../ui";
+import { Done, eur, Field, formatDate } from "../ui";
 
 export const dynamic = "force-dynamic";
 
@@ -55,7 +55,6 @@ export default async function PlansPage({ searchParams }: { searchParams: Promis
   const o = await loadOverview();
   return (
     <main className="page">
-      <Header />
       <p className="small" style={{ margin: "4px 0 0" }}>
         <Link href="/">← Overview</Link>
       </p>

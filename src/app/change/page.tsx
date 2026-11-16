@@ -13,7 +13,7 @@ import {
   setValuesAction,
 } from "../actions";
 import { ActionForm, Submit } from "../ActionForm";
-import { eur, Field, Header, today, unitsText } from "../ui";
+import { eur, Field, today, unitsText } from "../ui";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +39,6 @@ export default async function ChangePage({
 
   return (
     <main className="page">
-      <Header active="/change" />
       {current ? (
         <>
           <p className="small" style={{ margin: "4px 0 0" }}>

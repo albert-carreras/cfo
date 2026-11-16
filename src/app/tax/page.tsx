@@ -3,7 +3,7 @@ import { dec } from "@/calc/money";
 import { loadOverview } from "@/server/overview";
 import { saleBasisAction, taxPaidAction, undoTaxPaidAction, voidSaleAction } from "../actions";
 import { ActionForm, Submit } from "../ActionForm";
-import { Done, eur, Field, formatDate, Header, today, unitsText } from "../ui";
+import { Done, eur, Field, formatDate, today, unitsText } from "../ui";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +12,6 @@ export default async function TaxPage({ searchParams }: { searchParams: Promise<
   const o = await loadOverview();
   return (
     <main className="page">
-      <Header />
       <p className="small" style={{ margin: "4px 0 0" }}>
         <Link href="/">← Overview</Link>
       </p>

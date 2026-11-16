@@ -55,7 +55,9 @@ The UI is phone-first and wears a retro skin from `src/app/globals.css`, in one 
 Windows XP desktop (wallpaper, desktop shortcuts, classic grey taskbar whose Start menu lists every
 page) and, on it, one media-player style window per page: blue title bar, brushed silver metal, a
 glossy logo capsule, big silver pill buttons as the main nav, a black LCD status strip, and dark
-rounded panels with glowing status pills, purple selection and LED meters. Icons are real Windows
+rounded panels with glowing status pills, purple selection and LED meters. The desktop never
+scrolls: the window's top (`WindowChrome`, in the layout) stays put and only its content area
+scrolls, with XP scrollbars; on phones the window scrolls under a pinned title bar. Icons are real Windows
 XP artwork in `public/xp/` (Microsoft's, not under this repo's license; see its NOTICE). The
 equalizer in the logo capsule is decoration; the summary's equalizer bars and the spending meter
 are only shapes of figures shown next to them as text.

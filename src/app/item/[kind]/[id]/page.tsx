@@ -6,7 +6,7 @@ import { loadOverview, type Overview } from "@/server/overview";
 import { ACCOUNT_TYPE_LABELS, ACCOUNT_TYPES, OTHER_ASSET_CATEGORIES } from "@/shared/inputs";
 import { addLotAction, closeItemAction, editItemAction, setValuesAction } from "../../../actions";
 import { ActionForm, Submit } from "../../../ActionForm";
-import { Confirmed, Done, eur, Field, formatDate, Header, priceText, signedEur, today, unitsText } from "../../../ui";
+import { Confirmed, Done, eur, Field, formatDate, priceText, signedEur, today, unitsText } from "../../../ui";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +23,6 @@ export default async function ItemPage({
   if (!body) notFound();
   return (
     <main className="page">
-      <Header />
       <p className="small" style={{ margin: "4px 0 0" }}>
         <Link href="/">← Overview</Link>
       </p>

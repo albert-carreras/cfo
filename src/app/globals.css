@@ -68,10 +68,12 @@
 
 html { background: #3a7be0; }
 
+/* Like a real desktop, the page itself never scrolls: windows scroll inside. */
 body {
   margin: 0;
-  min-height: 100vh;
-  padding-bottom: 40px; /* the taskbar */
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
   color: var(--text);
   font: 15px/1.45 var(--font-ui);
   -webkit-font-smoothing: antialiased;
@@ -112,15 +114,46 @@ button, input, select, textarea { font: inherit; color: inherit; }
   vertical-align: -3px;
 }
 
+/* XP Luna scrollbars (Chromium and Safari; Firefox gets the colours). */
+::-webkit-scrollbar { width: 17px; height: 17px; }
+::-webkit-scrollbar-track {
+  background: linear-gradient(90deg, #eeede5 0%, #fdfdfb 25%, #fdfdfb 75%, #f1efe6 100%);
+}
+::-webkit-scrollbar-thumb {
+  min-height: 24px;
+  border: 1px solid #93a9e6;
+  border-radius: 3px;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpath d='M0 .5h8M0 2.5h8M0 4.5h8M0 6.5h8' stroke='%23f2f6ff'/%3E%3Cpath d='M0 1.5h8M0 3.5h8M0 5.5h8M0 7.5h8' stroke='%238aa3e3'/%3E%3C/svg%3E") center / 8px 8px no-repeat,
+    linear-gradient(90deg, #cbd9fd 0%, #bccffa 45%, #aec3f5 100%);
+  box-shadow: inset 1px 1px #fff, inset -1px -1px #b9caf3;
+}
+::-webkit-scrollbar-thumb:hover {
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpath d='M0 .5h8M0 2.5h8M0 4.5h8M0 6.5h8' stroke='%23f2f6ff'/%3E%3Cpath d='M0 1.5h8M0 3.5h8M0 5.5h8M0 7.5h8' stroke='%238aa3e3'/%3E%3C/svg%3E") center / 8px 8px no-repeat,
+    linear-gradient(90deg, #dae5fe 0%, #c9d9fd 45%, #bacdf8 100%);
+}
+::-webkit-scrollbar-button:single-button { display: block; width: 17px; height: 17px; background: center no-repeat; }
+::-webkit-scrollbar-button:single-button:vertical:decrement { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 17 17'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23e3ebfe'/%3E%3Cstop offset='1' stop-color='%23b0c5f6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect x='0.5' y='0.5' width='16' height='16' rx='2.5' fill='url(%23g)' stroke='%23fff'/%3E%3Crect x='1' y='1' width='15' height='15' rx='2' fill='none' stroke='%2393a9e6'/%3E%3Cpath d='M5 10.5l3.5-3.5 3.5 3.5' fill='none' stroke='%234d6185' stroke-width='2'/%3E%3C/svg%3E"); }
+::-webkit-scrollbar-button:single-button:vertical:increment { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 17 17'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23e3ebfe'/%3E%3Cstop offset='1' stop-color='%23b0c5f6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect x='0.5' y='0.5' width='16' height='16' rx='2.5' fill='url(%23g)' stroke='%23fff'/%3E%3Crect x='1' y='1' width='15' height='15' rx='2' fill='none' stroke='%2393a9e6'/%3E%3Cpath d='M5 7l3.5 3.5L12 7' fill='none' stroke='%234d6185' stroke-width='2'/%3E%3C/svg%3E"); }
+::-webkit-scrollbar-button:single-button:horizontal { display: none; }
+::-webkit-scrollbar-corner { background: #ece9d8; }
+@supports not selector(::-webkit-scrollbar) {
+  * { scrollbar-color: #b4c8f6 #f6f5ef; }
+}
+
 /* ── Desktop ─────────────────────────────────────────────── */
 
 .desktop {
   display: flex;
-  align-items: flex-start;
+  align-items: stretch;
   gap: 12px;
-  padding: 16px 16px 24px;
+  height: calc(100vh - 38px); /* above the taskbar */
+  height: calc(100dvh - 38px);
+  padding: 16px 16px 14px;
 }
-.desk-main { flex: 1; min-width: 0; }
+.desk-main { display: flex; flex: 1; min-width: 0; min-height: 0; }
+.desk-icons { align-self: flex-start; }
 .desk-icons { display: none; }
 
 .desk-icon {
@@ -153,11 +186,15 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 /* ── Window ──────────────────────────────────────────────── */
 
-.page {
+.window {
+  display: flex;
+  flex-direction: column;
   width: 100%;
   max-width: 66rem;
+  min-height: 0;
+  height: 100%;
   margin: 0 auto;
-  padding: 0 12px 14px;
+  padding: 0 4px 4px;
   /* XP Luna window frame: a blue border round the sides and bottom. */
   border: 1px solid;
   border-color: #0831d9 #001ea0 #001ea0 #0831d9;
@@ -174,9 +211,22 @@ button, input, select, textarea { font: inherit; color: inherit; }
     0 18px 50px rgba(0, 0, 30, 0.45),
     0 2px 6px rgba(0, 0, 0, 0.35);
 }
-.page-wide { max-width: 82rem; }
+.window:has(.page-wide) { max-width: 82rem; }
 
-.win-head { margin: 0 -12px 12px; }
+/* The client area: the only part of the window that scrolls. */
+.page {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-top: 12px;
+  padding: 14px 10px 16px 12px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-top: 1px solid var(--chrome-lo);
+  box-shadow: inset 0 1px 0 #fff;
+}
+
+.win-head { flex: none; margin: 0 -4px; }
 
 .titlebar {
   display: flex;
@@ -978,10 +1028,16 @@ details.more[open] > summary { margin-bottom: 12px; }
 /* ── Phones ──────────────────────────────────────────────── */
 
 @media (max-width: 640px) {
-  .desktop { padding: 8px 6px 16px; }
-  .page { padding: 0 8px 12px; }
-  .win-head { margin: 0 -8px 12px; }
-  .titlebar { height: 29px; font-size: 14px; }
+  .desktop { padding: 6px 4px 6px; }
+  .window { display: block; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
+  .win-head { display: contents; }
+  .titlebar { position: sticky; top: 0; z-index: 5; margin: 0 -4px; }
+  .page { overflow: visible; margin-top: 12px; padding: 12px 4px 14px; }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-button:single-button { display: none; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { min-height: 24px; border: 0; border-radius: 3px; background: rgba(40, 60, 120, 0.45); box-shadow: none; }
+  .titlebar { height: 29px; font-size: 14px; border-radius: 7px 7px 0 0; }
   .tb { width: 21px; height: 21px; }
   .tb-close::before, .tb-close::after { top: 3px; height: 13px; }
   .logobar { flex-wrap: wrap; gap: 6px 12px; margin: 10px 10px 0; padding: 10px 14px; border-radius: 16px; }

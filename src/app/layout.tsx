@@ -3,6 +3,7 @@ import Link from "next/link";
 import "./globals.css";
 import { XpIcon, type XpIconName } from "./icons";
 import { Taskbar } from "./Taskbar";
+import { WindowChrome } from "./WindowChrome";
 
 export const metadata: Metadata = {
   title: "CFO",
@@ -52,7 +53,12 @@ export default function RootLayout({
               ),
             )}
           </nav>
-          <div className="desk-main">{children}</div>
+          <div className="desk-main">
+            <div className="window">
+              <WindowChrome />
+              {children}
+            </div>
+          </div>
         </div>
         <Taskbar />
       </body>

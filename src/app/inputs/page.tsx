@@ -4,7 +4,7 @@ import { PLANNING_INPUTS } from "@/shared/inputs";
 import { inputsAction } from "../actions";
 import { ActionForm, Submit } from "../ActionForm";
 import { dec } from "@/calc/money";
-import { Done, eur, Field, formatDate, Header } from "../ui";
+import { Done, eur, Field, formatDate } from "../ui";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,6 @@ export default async function InputsPage({ searchParams }: { searchParams: Promi
   const fire = o.snapshot.fire.value;
   return (
     <main className="page">
-      <Header />
       <p className="small" style={{ margin: "4px 0 0" }}>
         <Link href="/">← Overview</Link>
       </p>

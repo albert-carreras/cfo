@@ -1,5 +1,5 @@
 import { listActivity, loadOverview } from "@/server/overview";
-import { formatDate, Header } from "../ui";
+import { formatDate } from "../ui";
 
 export const dynamic = "force-dynamic";
 
@@ -8,7 +8,6 @@ export default async function ActivityPage() {
   const entries = await listActivity(o.names, 200);
   return (
     <main className="page">
-      <Header active="/activity" />
       <h1>Activity</h1>
       <p className="lead">Everything recorded, newest first. Nothing is ever deleted.</p>
       <div className="card">

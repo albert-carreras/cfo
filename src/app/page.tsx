@@ -9,7 +9,6 @@ import {
   Done,
   eur,
   formatDate,
-  Header,
   isStale,
   NetWorthChart,
   priceText,
@@ -32,7 +31,6 @@ export default async function OverviewPage({
   } catch (error) {
     return (
       <main className="page">
-        <Header active="/" />
         <p className="alert alert-bad">
           The record is unavailable: {error instanceof Error ? error.message : String(error)}
         </p>
@@ -61,7 +59,6 @@ export default async function OverviewPage({
   if (o.accounts.length === 0 && o.properties.length === 0) {
     return (
       <main className="page">
-        <Header active="/" />
         <h1>Nothing recorded yet</h1>
         <p className="lead">Add your accounts, investments and property once. After that you only record what changes.</p>
         <Link href="/change?do=add" className="btn btn-primary">
@@ -109,7 +106,6 @@ export default async function OverviewPage({
 
   return (
     <main className="page page-wide">
-      <Header active="/" />
       <Done message={done} />
 
       <div className="status-strip">
