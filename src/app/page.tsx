@@ -2,7 +2,21 @@ import Link from "next/link";
 import { FRESHNESS_DAYS } from "@/calc/config/freshness";
 import { dec } from "@/calc/money";
 import { listActivity, loadOverview, loadSeries } from "@/server/overview";
-import { Confirmed, Done, eur, formatDate, Header, NetWorthChart, priceText, signedEur, targetHref, unitsText } from "./ui";
+import { Icon } from "./icons";
+import {
+  Badge,
+  Confirmed,
+  Done,
+  eur,
+  formatDate,
+  Header,
+  isStale,
+  NetWorthChart,
+  priceText,
+  signedEur,
+  targetHref,
+  unitsText,
+} from "./ui";
 
 export const dynamic = "force-dynamic";
 
@@ -57,221 +71,380 @@ export default async function OverviewPage({
     );
   }
 
+  const highCount = items.filter((item) => item.level === "high").length;
+  const counts = [
+    plural(o.accounts.length, "account"),
+    o.properties.length > 0 && plural(o.properties.length, "property", "properties"),
+    o.liabilities.length > 0 && plural(o.liabilities.length, "debt"),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  // Equalizer bars for the summary: each bar's height is its value against the
+  // largest one. Shape only; the € figures are the rows underneath.
+  const mix = [
+    { short: "Cash", value: nw.cashEUR },
+    { short: "Inv", value: nw.investmentsEUR },
+    { short: "Pens", value: nw.pensionEUR },
+    { short: "Prop", value: nw.propertyEquityEUR },
+    ...(dec(nw.otherAssetsEUR).greaterThan(0) ? [{ short: "Other", value: nw.otherAssetsEUR }] : []),
+    ...(dec(nw.debtEUR).greaterThan(0) ? [{ short: "Debt", value: nw.debtEUR, owed: true }] : []),
+    ...(dec(nw.taxDueEUR).greaterThan(0) ? [{ short: "Tax", value: nw.taxDueEUR, owed: true }] : []),
+  ];
+  const mixMax = Math.max(...mix.map((m) => Math.max(0, Number(m.value))));
+  const lit = (value: string) => {
+    const v = Math.max(0, Number(value));
+    if (mixMax <= 0 || v <= 0) return 0;
+    return Math.max(1, Math.round((EQ_SEGMENTS * v) / mixMax));
+  };
+
+  const spend = fire.monthlySpendEUR ? Number(fire.monthlySpendEUR) : null;
+  const safe = fire.safeMonthlySpendEUR ? Number(fire.safeMonthlySpendEUR) : null;
+  const spendLit =
+    spend != null && safe != null && safe > 0 ? Math.min(SPEND_SEGMENTS, Math.round((SPEND_SEGMENTS * spend) / safe)) : SPEND_SEGMENTS;
+
   return (
-    <main className="page">
+    <main className="page page-wide">
       <Header active="/" />
       <Done message={done} />
 
-      <section className="hero">
-        <div className="hero-label">Net worth · {formatDate(o.asOf)}</div>
-        <div className="hero-value num">{eur(nw.totalEUR)}</div>
-        {monthDelta && (
-          <div className="hero-delta">
-            <span className={monthDelta.isNegative() ? "down" : "up"}>{signedEur(monthDelta.toString())}</span>{" "}
-            since the end of last month
-          </div>
-        )}
-        <NetWorthChart points={points} />
-      </section>
-
-      <div className="actions">
-        <Link href="/change" className="btn btn-primary">
-          Something happened
-        </Link>
-        <Link href="/change?do=values" className="btn">
-          Update balances
+      <div className="status-strip">
+        <span className={`led ${items.length === 0 ? "led-good" : highCount > 0 ? "led-bad" : "led-warn"}`} aria-hidden="true" />
+        <span>{items.length === 0 ? "Nothing needs you" : `${items.length} ${items.length === 1 ? "thing needs" : "things need"} you`}</span>
+        <span className="strip-sep" aria-hidden="true" />
+        <span>As of {formatDate(o.asOf)}</span>
+        <span className="strip-sep strip-wide" aria-hidden="true" />
+        <span className="strip-wide">{counts}</span>
+        <Link href="/tax" className="strip-pill">
+          Tax aside {eur(nw.taxDueEUR)}
         </Link>
       </div>
 
-      <h2>Needs you</h2>
-      <div className="card attention">
-        {items.length === 0 ? (
-          <div className="all-good">All good. Nothing needs you right now.</div>
-        ) : (
-          items.map((item) => (
-            <Link key={item.id} href={targetHref(item.target)} className="row">
-              <span style={{ display: "flex" }}>
-                <span className={`dot ${item.level === "high" ? "high" : ""}`} aria-hidden="true" />
-                <span className="row-main">
-                  <span className="row-title">{item.title}</span>
-                  {item.detail && <span className="row-sub" style={{ display: "block" }}>{item.detail}</span>}
-                </span>
-              </span>
-              <span className="faint" aria-hidden="true">›</span>
-            </Link>
-          ))
-        )}
-      </div>
+      <div className="deck">
+        <div className="deck-col">
+          <section className="pane o-own" aria-labelledby="own-title">
+            <div className="pane-tabs">
+              <h2 id="own-title" className="pane-tab is-active">
+                <Icon name="folder" />
+                What you own
+              </h2>
+              <Link href="/change?do=add" className="pane-tab">
+                + Add
+              </Link>
+            </div>
+            <div className="own-list">
+              {o.accounts.length > 0 && <div className="own-group">Accounts</div>}
+              {o.accounts.map((account) => {
+                const limit = account.type === "pension" ? FRESHNESS_DAYS.pension : FRESHNESS_DAYS.cash;
+                const stale = isStale(account.confirmedAt, limit, o.asOf);
+                return (
+                  <div key={account.id}>
+                    <Link href={`/item/account/${account.id}`} className="own-row">
+                      <Icon name="folder" className="own-icon" />
+                      <span className="own-main">
+                        <span className="own-name">{account.name}</span>
+                        <span className="own-sub">
+                          {account.typeLabel} · <Confirmed date={account.confirmedAt} asOf={o.asOf} limitDays={limit} />
+                        </span>
+                      </span>
+                      <span className="own-side">
+                        <span className="own-value">{eur(account.holdings.length ? account.totalEUR : account.cashEUR)}</span>
+                        <Badge tone={stale ? "warn" : "good"}>{stale ? "Stale" : "Fresh"}</Badge>
+                      </span>
+                    </Link>
+                    {account.holdings.map((h) => (
+                      <Link key={h.id} href={`/item/holding/${h.id}`} className="own-row own-indent">
+                        <span className="own-led" aria-hidden="true" />
+                        <span className="own-main">
+                          <span className="own-name">{h.label}</span>
+                          <span className="own-sub">
+                            {unitsText(h.units)} × {h.priced ? priceText(h.priceEUR) : <span className="down">no price</span>}
+                            {h.gainEUR && (
+                              <>
+                                {" · "}
+                                <span className={dec(h.gainEUR).isNegative() ? "down" : "up"}>{signedEur(h.gainEUR)}</span>
+                              </>
+                            )}
+                          </span>
+                        </span>
+                        <span className="own-side">
+                          <span className="own-value">{eur(h.valueEUR)}</span>
+                          {!h.priced && <Badge tone="bad">No price</Badge>}
+                        </span>
+                      </Link>
+                    ))}
+                    {account.holdings.length > 0 && !dec(account.cashEUR).isZero() && (
+                      <div className="own-row own-indent">
+                        <span className="own-led" aria-hidden="true" />
+                        <span className="own-main">
+                          <span className="own-sub">Cash</span>
+                        </span>
+                        <span className="own-side">
+                          <span className="own-value small">{eur(account.cashEUR)}</span>
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {o.properties.length > 0 && <div className="own-group">Property</div>}
+              {o.properties.map((p) => {
+                const stale = isStale(p.valuedAt, FRESHNESS_DAYS.property, o.asOf);
+                return (
+                  <Link key={p.id} href={`/item/property/${p.id}`} className="own-row">
+                    <Icon name="home" className="own-icon i-home" />
+                    <span className="own-main">
+                      <span className="own-name">{p.name}</span>
+                      <span className="own-sub">
+                        {eur(p.valueEUR)}
+                        {p.ownershipPct !== "100" && ` · ${p.ownershipPct}% yours`}
+                        {dec(p.mortgageEUR).greaterThan(0) && ` · mortgage ${eur(p.mortgageEUR)}`} ·{" "}
+                        <Confirmed date={p.valuedAt} asOf={o.asOf} limitDays={FRESHNESS_DAYS.property} />
+                      </span>
+                    </span>
+                    <span className="own-side">
+                      <span className="own-value">{eur(p.equityEUR)}</span>
+                      <Badge tone={stale ? "warn" : "good"}>{stale ? "Stale" : "Fresh"}</Badge>
+                    </span>
+                  </Link>
+                );
+              })}
+              {o.liabilities.length > 0 && <div className="own-group">Debt</div>}
+              {o.liabilities.map((l) => {
+                const stale = isStale(l.valuedAt, FRESHNESS_DAYS.debt, o.asOf);
+                return (
+                  <Link key={l.id} href={`/item/debt/${l.id}`} className="own-row">
+                    <Icon name="doc" className="own-icon" />
+                    <span className="own-main">
+                      <span className="own-name">{l.name}</span>
+                      <span className="own-sub">
+                        <Confirmed date={l.valuedAt} asOf={o.asOf} limitDays={FRESHNESS_DAYS.debt} />
+                      </span>
+                    </span>
+                    <span className="own-side">
+                      <span className="own-value">−{eur(l.balanceEUR)}</span>
+                      <Badge tone={stale ? "warn" : "good"}>{stale ? "Stale" : "Fresh"}</Badge>
+                    </span>
+                  </Link>
+                );
+              })}
+              {o.otherAssets.length > 0 && <div className="own-group">Other</div>}
+              {o.otherAssets.map((a) => (
+                <Link key={a.id} href={`/item/other/${a.id}`} className="own-row">
+                  <Icon name="folder" className="own-icon" />
+                  <span className="own-main">
+                    <span className="own-name">{a.name}</span>
+                    <span className="own-sub">{a.includeInNetWorth ? "Counted in net worth" : "Not counted"}</span>
+                  </span>
+                  <span className="own-side">
+                    <span className="own-value">{eur(a.valueEUR)}</span>
+                    <Badge tone={a.includeInNetWorth ? "info" : "off"}>{a.includeInNetWorth ? "Counted" : "Not counted"}</Badge>
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </section>
+        </div>
 
-      <h2>Summary</h2>
-      <div className="card">
-        <SummaryRow label="Cash" value={nw.cashEUR} sub="Bank, savings and broker cash" />
-        <SummaryRow label="Investments" value={nw.investmentsEUR} sub="At today's prices" />
-        <SummaryRow label="Pension" value={nw.pensionEUR} sub="Locked until retirement" />
-        <SummaryRow label="Property" value={nw.propertyEquityEUR} sub="Your share, after mortgages" />
-        {dec(nw.otherAssetsEUR).greaterThan(0) && <SummaryRow label="Other assets" value={nw.otherAssetsEUR} />}
-        {dec(nw.debtEUR).greaterThan(0) && <SummaryRow label="Debt" value={nw.debtEUR} sub="Mortgages are already netted from property" />}
-        {dec(nw.taxDueEUR).greaterThan(0) && (
-          <Link href="/tax" className="row">
-            <span className="row-main">
-              <span className="row-title">Tax to keep aside</span>
-              <span className="row-sub" style={{ display: "block" }}>Estimated on this year&apos;s sales</span>
-            </span>
-            <span className="row-value">−{eur(nw.taxDueEUR)}</span>
-          </Link>
-        )}
-        <div className="row row-total">
-          <span>Net worth</span>
-          <span className="row-value">{eur(nw.totalEUR)}</span>
+        <div className="deck-col">
+          <section className="pane o-worth" aria-labelledby="worth-title">
+            <h2 id="worth-title" className="pane-title">
+              Net worth
+            </h2>
+            <div className="lcd hero">
+              <div className="lcd-head">
+                <span>As of {formatDate(o.asOf)}</span>
+                <span>EUR</span>
+              </div>
+              <div className="hero-value num">{eur(nw.totalEUR)}</div>
+              {monthDelta && (
+                <div className="hero-delta">
+                  <span className={monthDelta.isNegative() ? "down" : "up"}>{signedEur(monthDelta.toString())}</span>{" "}
+                  since the end of last month
+                </div>
+              )}
+              <NetWorthChart points={points} />
+            </div>
+          </section>
+
+          <section className="pane o-needs" aria-labelledby="needs-title">
+            <h2 id="needs-title" className="pane-title">
+              Needs you
+              {items.length > 0 && <span className="pane-count">{items.length}</span>}
+            </h2>
+            <div className="msgs">
+              {items.length === 0 ? (
+                <div className="msg">
+                  <span className="msg-avatar good">
+                    <Icon name="check" />
+                  </span>
+                  <span className="msg-main">
+                    <span className="msg-title">All good.</span>
+                    <span className="msg-text">Nothing needs you right now.</span>
+                  </span>
+                </div>
+              ) : (
+                items.map((item) => (
+                  <Link key={item.id} href={targetHref(item.target)} className="msg">
+                    <span className={`msg-avatar ${item.level === "high" ? "high" : "normal"}`}>
+                      <Icon name="warn" />
+                    </span>
+                    <span className="msg-main">
+                      <span className="msg-title">{item.title}</span>
+                      {item.detail && <span className="msg-text">{item.detail}</span>}
+                    </span>
+                    <span className="msg-go" aria-hidden="true">
+                      ›
+                    </span>
+                  </Link>
+                ))
+              )}
+            </div>
+          </section>
+
+          <section className="pane o-activity" aria-labelledby="activity-title">
+            <h2 id="activity-title" className="pane-title">
+              Recent activity
+            </h2>
+            <div className="msgs">
+              {activity.length === 0 && <div className="msg-empty muted">Nothing yet.</div>}
+              {activity.map((entry) => (
+                <div key={entry.id} className="msg">
+                  <span className="msg-avatar info">
+                    <Icon name="list" />
+                  </span>
+                  <span className="msg-main">
+                    <span className="msg-title">{entry.title}</span>
+                    {entry.note && <span className="msg-text">{entry.note}</span>}
+                  </span>
+                  <span className="msg-time">{formatDate(entry.asOf)}</span>
+                </div>
+              ))}
+            </div>
+            <div className="pane-foot small">
+              <Link href="/activity">All activity</Link>
+            </div>
+          </section>
+        </div>
+
+        <div className="deck-col">
+          <section className="pane o-summary" aria-labelledby="summary-title">
+            <h2 id="summary-title" className="pane-title">
+              Summary
+            </h2>
+            <div className="lcd eq-panel" aria-hidden="true">
+              {mix.map((m) => (
+                <div key={m.short} className="eq-col">
+                  <div className={`eq-meter${"owed" in m ? " owed" : ""}`}>
+                    {Array.from({ length: EQ_SEGMENTS }, (_, i) => (
+                      <span key={i} className={i < lit(m.value) ? "on" : undefined} />
+                    ))}
+                  </div>
+                  <div className="eq-label">{m.short}</div>
+                </div>
+              ))}
+            </div>
+            <div className="sum-rows">
+              <SummaryRow label="Cash" value={nw.cashEUR} sub="Bank, savings and broker cash" />
+              <SummaryRow label="Investments" value={nw.investmentsEUR} sub="At today's prices" />
+              <SummaryRow label="Pension" value={nw.pensionEUR} sub="Locked until retirement" />
+              <SummaryRow label="Property" value={nw.propertyEquityEUR} sub="Your share, after mortgages" />
+              {dec(nw.otherAssetsEUR).greaterThan(0) && <SummaryRow label="Other assets" value={nw.otherAssetsEUR} />}
+              {dec(nw.debtEUR).greaterThan(0) && (
+                <SummaryRow label="Debt" value={nw.debtEUR} sub="Mortgages are already netted from property" />
+              )}
+              {dec(nw.taxDueEUR).greaterThan(0) && (
+                <Link href="/tax" className="row">
+                  <span className="row-main">
+                    <span className="row-title">Tax to keep aside</span>
+                    <span className="row-sub" style={{ display: "block" }}>Estimated on this year&apos;s sales</span>
+                  </span>
+                  <span className="row-value">−{eur(nw.taxDueEUR)}</span>
+                </Link>
+              )}
+              <div className="row row-total">
+                <span>Net worth</span>
+                <span className="row-value">{eur(nw.totalEUR)}</span>
+              </div>
+            </div>
+          </section>
+
+          <section className="pane o-spend" aria-labelledby="spend-title">
+            <h2 id="spend-title" className="pane-title">
+              Spending
+            </h2>
+            {spend != null && safe != null ? (
+              <>
+                <div className="lcd lcd-rows">
+                  <div className="lcd-row">
+                    <span>You spend</span>
+                    <span>{eur(fire.monthlySpendEUR)}/mo</span>
+                  </div>
+                  <div className="lcd-row">
+                    <span>Safe to spend</span>
+                    <span>{eur(fire.safeMonthlySpendEUR)}/mo</span>
+                  </div>
+                  <div className={`led-bar${fire.fits ? "" : " over"}`} aria-hidden="true">
+                    {Array.from({ length: SPEND_SEGMENTS }, (_, i) => (
+                      <span key={i} className={i < spendLit ? "on" : undefined} />
+                    ))}
+                  </div>
+                  <div className="lcd-row lcd-status">
+                    <span>{fire.fits ? "Fits" : "Over the safe level"}</span>
+                  </div>
+                </div>
+                <p className="pane-note small">
+                  Cash and investments only. With no growth at all they would last {fire.runwayYears} years. Pension
+                  and property are not counted. <Link href="/inputs">Change spending</Link>
+                </p>
+              </>
+            ) : (
+              <p className="pane-note small">
+                <Link href="/inputs">Set your monthly spending</Link> to see what you can safely spend.
+              </p>
+            )}
+          </section>
+
+          <section className="pane o-plans" aria-labelledby="plans-title">
+            <h2 id="plans-title" className="pane-title">
+              Plans
+            </h2>
+            {o.plans.length === 0 ? (
+              <div className="msg-empty muted">No plans recorded.</div>
+            ) : (
+              <ol className="queue">
+                {o.plans.map((plan, i) => (
+                  <li key={plan.id}>
+                    <Link href="/plans">
+                      <span className="queue-n">{i + 1}.</span>
+                      <span className="queue-main">
+                        <span className="queue-title">{plan.label}</span>
+                        <span className="queue-sub">
+                          {plan.timingUnknown ? "Timing unknown" : formatDate(plan.date)}
+                          {plan.note && ` · ${plan.note}`}
+                        </span>
+                      </span>
+                      <span className="queue-value">{plan.amountTBD ? "TBD" : eur(plan.amount)}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ol>
+            )}
+            <p className="pane-note small">
+              Plans are context for decisions. They never change the numbers above. <Link href="/plans">Edit plans</Link>
+            </p>
+          </section>
         </div>
       </div>
-
-      <h2>Spending</h2>
-      <Link href="/inputs" className="card card-pad" style={{ display: "block", textDecoration: "none" }}>
-        {fire.safeMonthlySpendEUR && fire.monthlySpendEUR ? (
-          <>
-            <div>
-              You spend <strong className="num">{eur(fire.monthlySpendEUR)}</strong>/month. Cash and investments can
-              safely pay <strong className="num">{eur(fire.safeMonthlySpendEUR)}</strong>/month{" "}
-              {fire.fits ? <span className="up">✓</span> : <span className="down">(over)</span>}
-            </div>
-            <div className="row-sub" style={{ marginTop: 4 }}>
-              With no growth at all they would last {fire.runwayYears} years. Pension and property are not counted.
-            </div>
-          </>
-        ) : (
-          <div>Set your monthly spending to see what you can safely spend.</div>
-        )}
-      </Link>
-
-      <h2>What you own</h2>
-      <div className="card">
-        {o.accounts.length > 0 && <div className="group-head">Accounts</div>}
-        {o.accounts.map((account) => (
-          <div key={account.id}>
-            <Link href={`/item/account/${account.id}`} className="row">
-              <span className="row-main">
-                <span className="row-title">{account.name}</span>
-                <span className="row-sub" style={{ display: "block" }}>
-                  {account.typeLabel} ·{" "}
-                  <Confirmed
-                    date={account.confirmedAt}
-                    asOf={o.asOf}
-                    limitDays={account.type === "pension" ? FRESHNESS_DAYS.pension : FRESHNESS_DAYS.cash}
-                  />
-                </span>
-              </span>
-              <span className="row-value">
-                {eur(account.holdings.length ? account.totalEUR : account.cashEUR)}
-              </span>
-            </Link>
-            {account.holdings.map((h) => (
-              <Link key={h.id} href={`/item/holding/${h.id}`} className="row row-indent">
-                <span className="row-main">
-                  <span className="row-title">{h.label}</span>
-                  <span className="row-sub" style={{ display: "block" }}>
-                    {unitsText(h.units)} × {h.priced ? priceText(h.priceEUR) : <span className="down">no price</span>}
-                    {h.gainEUR && (
-                      <>
-                        {" · "}
-                        <span className={dec(h.gainEUR).isNegative() ? "down" : "up"}>{signedEur(h.gainEUR)}</span>
-                      </>
-                    )}
-                  </span>
-                </span>
-                <span className="row-value">{eur(h.valueEUR)}</span>
-              </Link>
-            ))}
-            {account.holdings.length > 0 && !dec(account.cashEUR).isZero() && (
-              <div className="row row-indent">
-                <span className="row-sub">Cash</span>
-                <span className="row-value small">{eur(account.cashEUR)}</span>
-              </div>
-            )}
-          </div>
-        ))}
-        {o.properties.length > 0 && <div className="group-head">Property</div>}
-        {o.properties.map((p) => (
-          <Link key={p.id} href={`/item/property/${p.id}`} className="row">
-            <span className="row-main">
-              <span className="row-title">{p.name}</span>
-              <span className="row-sub" style={{ display: "block" }}>
-                {eur(p.valueEUR)}
-                {p.ownershipPct !== "100" && ` · ${p.ownershipPct}% yours`}
-                {dec(p.mortgageEUR).greaterThan(0) && ` · mortgage ${eur(p.mortgageEUR)}`} ·{" "}
-                <Confirmed date={p.valuedAt} asOf={o.asOf} limitDays={FRESHNESS_DAYS.property} />
-              </span>
-            </span>
-            <span className="row-value">{eur(p.equityEUR)}</span>
-          </Link>
-        ))}
-        {o.liabilities.length > 0 && <div className="group-head">Debt</div>}
-        {o.liabilities.map((l) => (
-          <Link key={l.id} href={`/item/debt/${l.id}`} className="row">
-            <span className="row-main">
-              <span className="row-title">{l.name}</span>
-              <span className="row-sub" style={{ display: "block" }}>
-                <Confirmed date={l.valuedAt} asOf={o.asOf} limitDays={FRESHNESS_DAYS.debt} />
-              </span>
-            </span>
-            <span className="row-value">−{eur(l.balanceEUR)}</span>
-          </Link>
-        ))}
-        {o.otherAssets.length > 0 && <div className="group-head">Other</div>}
-        {o.otherAssets.map((a) => (
-          <Link key={a.id} href={`/item/other/${a.id}`} className="row">
-            <span className="row-main">
-              <span className="row-title">{a.name}</span>
-              <span className="row-sub" style={{ display: "block" }}>
-                {a.includeInNetWorth ? "Counted in net worth" : "Not counted"}
-              </span>
-            </span>
-            <span className="row-value">{eur(a.valueEUR)}</span>
-          </Link>
-        ))}
-      </div>
-      <p className="small" style={{ marginTop: 8 }}>
-        <Link href="/change?do=add">Add an account, investment, property or debt</Link>
-      </p>
-
-      <h2>Plans</h2>
-      <div className="card">
-        {o.plans.length === 0 && <div className="row muted">No plans recorded.</div>}
-        {o.plans.map((plan) => (
-          <Link key={plan.id} href="/plans" className="row">
-            <span className="row-main">
-              <span className="row-title">{plan.label}</span>
-              <span className="row-sub" style={{ display: "block" }}>
-                {plan.timingUnknown ? "Timing unknown" : formatDate(plan.date)}
-                {plan.note && ` · ${plan.note}`}
-              </span>
-            </span>
-            <span className="row-value">{plan.amountTBD ? "TBD" : eur(plan.amount)}</span>
-          </Link>
-        ))}
-      </div>
-      <p className="small" style={{ marginTop: 8 }}>
-        Plans are context for decisions. They never change the numbers above. <Link href="/plans">Edit plans</Link>
-      </p>
-
-      <h2>Recent activity</h2>
-      <div className="card">
-        {activity.length === 0 && <div className="row muted">Nothing yet.</div>}
-        {activity.map((entry) => (
-          <div key={entry.id} className="row">
-            <span className="row-main">
-              <span className="row-title">{entry.title}</span>
-              {entry.note && <span className="row-sub" style={{ display: "block" }}>{entry.note}</span>}
-            </span>
-            <span className="row-value small muted">{formatDate(entry.asOf)}</span>
-          </div>
-        ))}
-      </div>
-      <p className="small" style={{ marginTop: 8 }}>
-        <Link href="/activity">All activity</Link>
-      </p>
     </main>
   );
+}
+
+const EQ_SEGMENTS = 12;
+const SPEND_SEGMENTS = 20;
+
+function plural(n: number, one: string, many = `${one}s`) {
+  return `${n} ${n === 1 ? one : many}`;
 }
 
 function SummaryRow({ label, value, sub }: { label: string; value: string; sub?: string }) {

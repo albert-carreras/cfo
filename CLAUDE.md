@@ -51,7 +51,12 @@ If code contradicts a doc, update the doc in the same change.
 - `/api/export` — the Markdown brief. `/api/cron/daily` — prices, FX, today's snapshot.
   `/api/cron/monthly` — the monthly push.
 
-The UI is plain and phone-first, with light and dark themes from `src/app/globals.css`.
+The UI is phone-first and wears a retro desktop skin from `src/app/globals.css`: a wallpaper,
+one metal window per page (title bar, logo strip, button row as the main nav), dark LCD panels for
+the data and a taskbar with a menu of every page. Panels look the same in both themes; the
+wallpaper and window metal switch between day and night. The equalizer in the logo strip is
+decoration; the summary's equalizer bars and the spending meter are only shapes of figures shown
+next to them as text.
 
 ## Stack and commands
 

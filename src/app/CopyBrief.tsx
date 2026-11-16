@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Icon } from "./icons";
 
 // Copies the Markdown brief, ready to paste into a ChatGPT/Claude chat.
 export function CopyBrief() {
@@ -16,8 +17,9 @@ export function CopyBrief() {
     setTimeout(() => setLabel("Copy for AI"), 2000);
   }
   return (
-    <button type="button" className="btn btn-small" onClick={copy}>
-      {label}
+    <button type="button" className="tool" onClick={copy}>
+      <Icon name="copy" className="i-copy" />
+      <span aria-live="polite">{label}</span>
     </button>
   );
 }

@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import "./globals.css";
+import { Icon } from "./icons";
+import { Taskbar } from "./Taskbar";
 
 export const metadata: Metadata = {
   title: "CFO",
@@ -22,7 +25,35 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <div className="desktop">
+          {/* Shortcuts on the wallpaper, shown when the screen is wide enough. */}
+          <nav className="desk-icons" aria-label="Shortcuts">
+            <Link href="/tax" className="desk-icon">
+              <Icon name="tax" />
+              Tax
+            </Link>
+            <Link href="/plans" className="desk-icon">
+              <Icon name="folder" />
+              Plans
+            </Link>
+            <Link href="/inputs" className="desk-icon">
+              <Icon name="folder" />
+              Inputs
+            </Link>
+            <Link href="/activity" className="desk-icon">
+              <Icon name="folder" />
+              Activity
+            </Link>
+            <a href="/api/export" download className="desk-icon">
+              <Icon name="doc" />
+              Brief.md
+            </a>
+          </nav>
+          <div className="desk-main">{children}</div>
+        </div>
+        <Taskbar />
+      </body>
     </html>
   );
 }

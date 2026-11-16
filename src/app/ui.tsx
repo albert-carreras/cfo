@@ -1,10 +1,11 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { AttentionTarget } from "@/calc/attention";
 import { ageLabel, daysBetween, formatDate } from "@/calc/dates";
 import { dec, formatEUR, formatEURWhole, formatUnits } from "@/calc/money";
 import { sparklinePoints } from "@/shared/sparkline";
 import { CopyBrief } from "./CopyBrief";
+import { Icon, type IconName } from "./icons";
 
 export const eur = (value: string | number | null | undefined) =>
   value == null ? "—" : formatEURWhole(value);
@@ -24,30 +25,63 @@ export function today() {
 }
 
 const NAV = [
-  { href: "/", label: "Overview" },
-  { href: "/change", label: "Update" },
-  { href: "/activity", label: "Activity" },
-] as const;
+  { href: "/", label: "Overview", icon: "home" },
+  { href: "/change", label: "Something happened", icon: "play" },
+  { href: "/change?do=values", label: "Balances", icon: "refresh" },
+  { href: "/activity", label: "Activity", icon: "list" },
+] as const satisfies readonly { href: string; label: string; icon: IconName }[];
 
-export function Header({ active }: { active?: (typeof NAV)[number]["href"] }) {
+type ActiveNav = "/" | "/change" | "/activity";
+
+// The window chrome every page sits in: title bar, logo strip and the button
+// row that doubles as the main navigation.
+export function Header({ active }: { active?: ActiveNav }) {
+  const title = NAV.find((item) => item.href === active)?.label;
   return (
-    <header className="header">
-      <Link href="/" className="brand">
-        CFO
-      </Link>
-      <nav className="nav" aria-label="Main">
-        {NAV.map((item) => (
-          <Link key={item.href} href={item.href} aria-current={active === item.href ? "page" : undefined}>
-            {item.label}
-          </Link>
-        ))}
-      </nav>
-      <div className="header-actions">
-        <CopyBrief />
-        <a href="/api/export" download className="btn btn-small">
-          .md
-        </a>
+    <header className="win-head">
+      <div className="titlebar">
+        <Icon name="briefcase" className="titlebar-icon" />
+        <span className="titlebar-text">{title ? `CFO - ${title}` : "CFO"}</span>
+        <span className="titlebar-buttons" aria-hidden="true">
+          <span className="tb tb-min" />
+          <span className="tb tb-max" />
+          <span className="tb tb-close" />
+        </span>
       </div>
+      <div className="logobar">
+        <Link href="/" className="logo">
+          <span className="logo-text">CFO</span>
+          <span className="logo-sub">personal record</span>
+        </Link>
+        <span className="logobar-tag">Every number verified or calculated.</span>
+        <span className="eq" aria-hidden="true">
+          {Array.from({ length: 14 }, (_, i) => (
+            <span key={i} style={{ "--i": i } as CSSProperties} />
+          ))}
+        </span>
+      </div>
+      <nav className="toolbar" aria-label="Main">
+        <div className="toolbar-main">
+          {NAV.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="tool"
+              aria-current={active === item.href ? "page" : undefined}
+            >
+              <Icon name={item.icon} className={`i-${item.icon}`} />
+              {item.label}
+            </Link>
+          ))}
+        </div>
+        <div className="toolbar-tools">
+          <CopyBrief />
+          <a href="/api/export" download className="tool">
+            <Icon name="download" className="i-download" />
+            .md
+          </a>
+        </div>
+      </nav>
     </header>
   );
 }
@@ -72,7 +106,16 @@ export function Confirmed({
 }) {
   const days = daysBetween(date, asOf);
   const when = days <= 0 ? "today" : `${ageLabel(days)} ago`;
-  return <span className={days > limitDays ? "stale" : undefined}>{bare ? when : `confirmed ${when}`}</span>;
+  return <span className={isStale(date, limitDays, asOf) ? "stale" : undefined}>{bare ? when : `confirmed ${when}`}</span>;
+}
+
+// Past its freshness limit: the same test the "confirmed … ago" text uses.
+export function isStale(date: string, limitDays: number, asOf: string) {
+  return daysBetween(date, asOf) > limitDays;
+}
+
+export function Badge({ tone, children }: { tone: "good" | "warn" | "bad" | "info" | "off"; children: ReactNode }) {
+  return <span className={`badge badge-${tone}`}>{children}</span>;
 }
 
 export function Field({
@@ -105,11 +148,12 @@ export function NetWorthChart({ points }: { points: { asOf: string; totalEUR: nu
   return (
     <figure style={{ margin: 0 }}>
       <svg className="chart" viewBox="0 0 600 72" preserveAspectRatio="none" aria-hidden="true">
-        <polygon points={area} fill="var(--accent)" opacity="0.08" />
+        <polygon points={area} fill="var(--lcd)" opacity="0.14" />
         <polyline
+          className="chart-line"
           points={line}
           fill="none"
-          stroke="var(--accent)"
+          stroke="var(--lcd)"
           strokeWidth="2"
           vectorEffect="non-scaling-stroke"
         />
