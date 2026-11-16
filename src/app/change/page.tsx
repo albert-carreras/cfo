@@ -13,6 +13,7 @@ import {
   setValuesAction,
 } from "../actions";
 import { ActionForm, Submit } from "../ActionForm";
+import { XpIcon } from "../icons";
 import { eur, Field, today, unitsText } from "../ui";
 
 export const dynamic = "force-dynamic";
@@ -41,9 +42,6 @@ export default async function ChangePage({
     <main className="page">
       {current ? (
         <>
-          <p className="small" style={{ margin: "4px 0 0" }}>
-            <Link href="/change">← Something else happened</Link>
-          </p>
           <h1 id="form">{CHOICES.find((c) => c.key === current)?.title}</h1>
           <ChoiceForm choice={current} o={o} what={params.what} holding={params.holding} />
         </>
@@ -611,7 +609,7 @@ function CloseList({ o }: { o: Overview }) {
               <span className="row-title">{row.label}</span>
               <span className="row-sub" style={{ display: "block" }}>{row.sub}</span>
             </span>
-            <span className="faint">›</span>
+            <XpIcon name="go" className="row-go" />
           </Link>
         ))}
       </div>

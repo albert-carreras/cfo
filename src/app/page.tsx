@@ -105,7 +105,7 @@ export default async function OverviewPage({
       : SPEND_SEGMENTS;
 
   return (
-    <main className="page page-wide">
+    <main className="page">
       <Done message={done} />
 
       <div className="status-strip">
@@ -143,9 +143,9 @@ export default async function OverviewPage({
                 const limit = account.type === "pension" ? FRESHNESS_DAYS.pension : FRESHNESS_DAYS.cash;
                 const stale = isStale(account.confirmedAt, limit, o.asOf);
                 return (
-                  <div key={account.id}>
+                  <div key={account.id} className="own-node">
                     <Link href={`/item/account/${account.id}`} className="own-row">
-                      <span className="own-caret" aria-hidden="true" />
+                      <span className="own-gap" aria-hidden="true" />
                       <XpIcon name="folder" className="own-icon" />
                       <span className="own-main">
                         <span className="own-name">{account.name}</span>
@@ -158,37 +158,43 @@ export default async function OverviewPage({
                         <Badge tone={stale ? "warn" : "good"}>{stale ? "Stale" : "Fresh"}</Badge>
                       </span>
                     </Link>
-                    {account.holdings.map((h) => (
-                      <Link key={h.id} href={`/item/holding/${h.id}`} className="own-row own-indent">
-                        <span className="own-caret" aria-hidden="true" />
-                        <XpIcon name="graph" className="own-icon" />
-                        <span className="own-main">
-                          <span className="own-name">{h.label}</span>
-                          <span className="own-sub">
-                            {unitsText(h.units)} × {h.priced ? priceText(h.priceEUR) : <span className="down">no price</span>}
-                            {h.gainEUR && (
-                              <>
-                                {" · "}
-                                <span className={dec(h.gainEUR).isNegative() ? "down" : "up"}>{signedEur(h.gainEUR)}</span>
-                              </>
-                            )}
-                          </span>
-                        </span>
-                        <span className="own-side">
-                          <span className="own-value">{eur(h.valueEUR)}</span>
-                          {!h.priced && <Badge tone="bad">No price</Badge>}
-                        </span>
-                      </Link>
-                    ))}
-                    {account.holdings.length > 0 && !dec(account.cashEUR).isZero() && (
-                      <div className="own-row own-indent own-cash">
-                        <span className="own-main">
-                          <span className="own-sub">Cash</span>
-                        </span>
-                        <span className="own-side">
-                          <span className="own-value">{eur(account.cashEUR)}</span>
-                        </span>
-                      </div>
+                    {account.holdings.length > 0 && (
+                      // A tree node, like Explorer's: the box shows or hides what the account holds.
+                      <details open className="own-kids">
+                        <summary className="own-exp" aria-label={`Investments in ${account.name}`} />
+                        {account.holdings.map((h) => (
+                          <Link key={h.id} href={`/item/holding/${h.id}`} className="own-row own-indent">
+                            <span className="own-gap" aria-hidden="true" />
+                            <XpIcon name="graph" className="own-icon" />
+                            <span className="own-main">
+                              <span className="own-name">{h.label}</span>
+                              <span className="own-sub">
+                                {unitsText(h.units)} × {h.priced ? priceText(h.priceEUR) : <span className="down">no price</span>}
+                                {h.gainEUR && (
+                                  <>
+                                    {" · "}
+                                    <span className={dec(h.gainEUR).isNegative() ? "down" : "up"}>{signedEur(h.gainEUR)}</span>
+                                  </>
+                                )}
+                              </span>
+                            </span>
+                            <span className="own-side">
+                              <span className="own-value">{eur(h.valueEUR)}</span>
+                              {!h.priced && <Badge tone="bad">No price</Badge>}
+                            </span>
+                          </Link>
+                        ))}
+                        {!dec(account.cashEUR).isZero() && (
+                          <div className="own-row own-indent own-cash">
+                            <span className="own-main">
+                              <span className="own-sub">Cash</span>
+                            </span>
+                            <span className="own-side">
+                              <span className="own-value">{eur(account.cashEUR)}</span>
+                            </span>
+                          </div>
+                        )}
+                      </details>
                     )}
                   </div>
                 );
@@ -198,7 +204,7 @@ export default async function OverviewPage({
                 const stale = isStale(p.valuedAt, FRESHNESS_DAYS.property, o.asOf);
                 return (
                   <Link key={p.id} href={`/item/property/${p.id}`} className="own-row">
-                    <span className="own-caret" aria-hidden="true" />
+                    <span className="own-gap" aria-hidden="true" />
                     <XpIcon name="home" className="own-icon" />
                     <span className="own-main">
                       <span className="own-name">{p.name}</span>
@@ -221,7 +227,7 @@ export default async function OverviewPage({
                 const stale = isStale(l.valuedAt, FRESHNESS_DAYS.debt, o.asOf);
                 return (
                   <Link key={l.id} href={`/item/debt/${l.id}`} className="own-row">
-                    <span className="own-caret" aria-hidden="true" />
+                    <span className="own-gap" aria-hidden="true" />
                     <XpIcon name="certificate" className="own-icon" />
                     <span className="own-main">
                       <span className="own-name">{l.name}</span>
@@ -239,7 +245,7 @@ export default async function OverviewPage({
               {o.otherAssets.length > 0 && <div className="own-group">Other</div>}
               {o.otherAssets.map((a) => (
                 <Link key={a.id} href={`/item/other/${a.id}`} className="own-row">
-                  <span className="own-caret" aria-hidden="true" />
+                  <span className="own-gap" aria-hidden="true" />
                   <XpIcon name="briefcase" className="own-icon" />
                   <span className="own-main">
                     <span className="own-name">{a.name}</span>
@@ -308,9 +314,7 @@ export default async function OverviewPage({
                       </span>
                       {item.detail && <span className="msg-text">{item.detail}</span>}
                     </span>
-                    <span className="msg-go" aria-hidden="true">
-                      ›
-                    </span>
+                    <XpIcon name="go" className="msg-go" />
                   </Link>
                 ))
               )}

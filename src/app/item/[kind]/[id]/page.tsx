@@ -23,9 +23,6 @@ export default async function ItemPage({
   if (!body) notFound();
   return (
     <main className="page">
-      <p className="small" style={{ margin: "4px 0 0" }}>
-        <Link href="/">← Overview</Link>
-      </p>
       <Done message={done} />
       {body}
     </main>

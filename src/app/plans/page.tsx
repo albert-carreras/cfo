@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { loadOverview } from "@/server/overview";
 import { PLAN_TYPES, planLabel } from "@/shared/plans";
 import { completePlanAction, savePlanAction } from "../actions";
@@ -55,9 +54,6 @@ export default async function PlansPage({ searchParams }: { searchParams: Promis
   const o = await loadOverview();
   return (
     <main className="page">
-      <p className="small" style={{ margin: "4px 0 0" }}>
-        <Link href="/">← Overview</Link>
-      </p>
       <Done message={done} />
       <h1>Plans</h1>
       <p className="lead">

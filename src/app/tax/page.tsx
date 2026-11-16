@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { dec } from "@/calc/money";
 import { loadOverview } from "@/server/overview";
 import { saleBasisAction, taxPaidAction, undoTaxPaidAction, voidSaleAction } from "../actions";
@@ -12,9 +11,6 @@ export default async function TaxPage({ searchParams }: { searchParams: Promise<
   const o = await loadOverview();
   return (
     <main className="page">
-      <p className="small" style={{ margin: "4px 0 0" }}>
-        <Link href="/">← Overview</Link>
-      </p>
       <Done message={done} />
       <h1>Tax on sales</h1>
       <p className="lead">

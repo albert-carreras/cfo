@@ -26,6 +26,10 @@ prices + FX feed ────┼─> Postgres: facts, movements, observations, s
 - **Read model:** `src/server/overview.ts` builds what every screen and the export show.
 - **UI:** server components in `src/app`. Forms post through `ActionForm`, which keeps what was
   typed when a flow rejects it (`RecordError`) and shows why.
+- **Windows:** the root layout draws an XP desktop. Pages render in the main window; the `@win`
+  slot intercepts `/tax`, `/plans`, `/inputs` and `/item/*` on in-app navigation and shows them in
+  a second window, while a direct load renders them in the main window. Window state (open,
+  minimized, maximized, focus, stacking) is a small client store in `src/app/wm.ts`.
 
 ## Automation
 

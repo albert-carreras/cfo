@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Suspense, type ReactNode } from "react";
 import "./globals.css";
-import { XpIcon, type XpIconName } from "./icons";
+import { DesktopIcons } from "./DesktopIcons";
+import { Downloader } from "./Downloader";
+import { MainWindow } from "./MainWindow";
+import { NavWatcher } from "./NavWatcher";
 import { Taskbar } from "./Taskbar";
-import { WindowChrome } from "./WindowChrome";
 
 export const metadata: Metadata = {
   title: "CFO",
@@ -19,48 +21,25 @@ export const metadata: Metadata = {
   manifest: "/site.webmanifest",
 };
 
-const DESKTOP: { href: string; label: string; icon: XpIconName; download?: boolean }[] = [
-  { href: "/", label: "Overview", icon: "my-computer" },
-  { href: "/tax", label: "Tax", icon: "calculator" },
-  { href: "/plans", label: "Plans", icon: "scheduled-tasks" },
-  { href: "/inputs", label: "Inputs", icon: "control-panel" },
-  { href: "/activity", label: "Activity", icon: "event-viewer" },
-  { href: "/api/export", label: "Brief.md", icon: "notepad", download: true },
-];
-
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+// The desktop: shortcuts on the wallpaper, the main window, a second window
+// when a page opens in one of its own (the `win` slot), the transfers window
+// and the taskbar.
+export default function RootLayout({ children, win }: { children: ReactNode; win: ReactNode }) {
   return (
     <html lang="en">
       <body>
         <div className="desktop">
-          {/* Shortcuts on the wallpaper, shown when the screen is wide enough. */}
-          <nav className="desk-icons" aria-label="Shortcuts">
-            {DESKTOP.map((item) =>
-              item.download ? (
-                <a key={item.href} href={item.href} download className="desk-icon">
-                  <XpIcon name={item.icon} />
-                  {item.label}
-                </a>
-              ) : (
-                <Link key={item.href} href={item.href} className="desk-icon">
-                  <XpIcon name={item.icon} />
-                  {item.label}
-                </Link>
-              ),
-            )}
-          </nav>
+          <DesktopIcons />
           <div className="desk-main">
-            <div className="window">
-              <WindowChrome />
-              {children}
-            </div>
+            <MainWindow>{children}</MainWindow>
+            {win}
           </div>
         </div>
+        <Downloader />
         <Taskbar />
+        <Suspense fallback={null}>
+          <NavWatcher />
+        </Suspense>
       </body>
     </html>
   );

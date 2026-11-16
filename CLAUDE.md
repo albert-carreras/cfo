@@ -53,14 +53,24 @@ If code contradicts a doc, update the doc in the same change.
 
 The UI is phone-first and wears a retro skin from `src/app/globals.css`, in one theme only: a
 Windows XP desktop (wallpaper, desktop shortcuts, classic grey taskbar whose Start menu lists every
-page) and, on it, one media-player style window per page: blue title bar, brushed silver metal, a
-glossy logo capsule, big silver pill buttons as the main nav, a black LCD status strip, and dark
-rounded panels with glowing status pills, purple selection and LED meters. The desktop never
-scrolls: the window's top (`WindowChrome`, in the layout) stays put and only its content area
-scrolls, with XP scrollbars; on phones the window scrolls under a pinned title bar. Icons are real Windows
-XP artwork in `public/xp/` (Microsoft's, not under this repo's license; see its NOTICE). The
-equalizer in the logo capsule is decoration; the summary's equalizer bars and the spending meter
-are only shapes of figures shown next to them as text.
+page, XP cursors) with media-player style windows on it: XP Luna title bars, brushed silver metal,
+a glossy logo capsule, big silver pill buttons as the main nav, an Explorer address bar with
+Back/Forward/Up, a black LCD status strip, and dark rounded panels with glowing status pills,
+purple selection and LED meters.
+
+Windows behave like XP's (`src/app/wm.ts` holds their state): one fixed size whatever the page,
+draggable by the title bar, minimize/maximize/close, focus and stacking, a taskbar button each.
+The desktop never scrolls; only a window's content area does. The main window
+(`MainWindow` + `WindowChrome` in the layout) shows the page for the address. Tax, Plans, Inputs
+and item pages opened from inside the app open in a second window instead (the `@win` slot with
+intercepting routes, `SideWindow`); loaded directly they fill the main window. Desktop icons
+select on one click and open on a double click. Icons and cursors are real Windows XP artwork in
+`public/xp/` (Microsoft's, not under this repo's license; see its NOTICE).
+
+Decoration, never data: the equalizer in the logo capsule and the Transfers window
+(`Downloader.tsx`), which pretends to download files at dial-up speeds and shows its rate in the
+tray. The summary's equalizer bars and the spending meter are only shapes of figures shown next
+to them as text.
 
 ## Stack and commands
 

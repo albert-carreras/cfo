@@ -23,7 +23,18 @@ export type XpIconName =
   | "save"
   | "scheduled-tasks"
   | "success"
-  | "volume";
+  | "volume"
+  | "back"
+  | "forward"
+  | "up"
+  | "go"
+  | "network"
+  | "network-places"
+  | "media"
+  | "zip"
+  | "txt"
+  | "xml"
+  | "folder-open";
 
 export function XpIcon({ name, className }: { name: XpIconName; className?: string }) {
   return (

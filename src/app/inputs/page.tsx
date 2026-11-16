@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { loadOverview } from "@/server/overview";
 import { PLANNING_INPUTS } from "@/shared/inputs";
 import { inputsAction } from "../actions";
@@ -14,9 +13,6 @@ export default async function InputsPage({ searchParams }: { searchParams: Promi
   const fire = o.snapshot.fire.value;
   return (
     <main className="page">
-      <p className="small" style={{ margin: "4px 0 0" }}>
-        <Link href="/">← Overview</Link>
-      </p>
       <Done message={done} />
       <h1>Spending</h1>
       <div className="card card-pad">
