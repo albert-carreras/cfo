@@ -2,7 +2,7 @@ import { loadOverview } from "@/server/overview";
 import { PLAN_TYPES, planLabel } from "@/shared/plans";
 import { completePlanAction, savePlanAction } from "../actions";
 import { ActionForm, Submit } from "../ActionForm";
-import { Done, eur, Field, formatDate } from "../ui";
+import { Amt, Done, eur, Field, formatDate } from "../ui";
 
 export const dynamic = "force-dynamic";
 
@@ -68,7 +68,7 @@ export default async function PlansPage({ searchParams }: { searchParams: Promis
               <span className="muted">· {plan.timingUnknown ? "timing unknown" : formatDate(plan.date)}</span>
               {plan.note && <span className="row-sub" style={{ display: "block" }}>{plan.note}</span>}
             </span>
-            <span className="num">{plan.amountTBD ? "TBD" : eur(plan.amount)}</span>
+            <span className="num">{plan.amountTBD ? "TBD" : <Amt>{eur(plan.amount)}</Amt>}</span>
           </summary>
           <div style={{ marginTop: 14 }}>
             <ActionForm action={savePlanAction}>

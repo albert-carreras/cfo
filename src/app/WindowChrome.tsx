@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState, type CSSProperties, type MouseEvent } from "react";
 import { CopyBrief } from "./CopyBrief";
+import { HideTotals } from "./HideTotals";
 import { HitCounter } from "./HitCounter";
 import { XpIcon, type XpIconName } from "./icons";
 import { mainHistory, setBusy, useMainHistory } from "./nav";
@@ -38,15 +39,15 @@ function useRememberedUrl(path: string) {
 // button row that is the main navigation, and an Explorer-style address bar.
 // When the address is this window's own page, its query is right here, so
 // the lit button and the address are right on the first paint.
-export function WindowChrome({ path, visits }: { path: string; visits: number | null }) {
+export function WindowChrome({ path, visits, totalsHidden }: { path: string; visits: number | null; totalsHidden: boolean }) {
   const remembered = useRememberedUrl(path);
   const pathname = usePathname();
   const search = useSearchParams().toString();
   const url = pathname === path ? (search ? `${path}?${search}` : path) : remembered;
-  return <Chrome url={url} visits={visits} />;
+  return <Chrome url={url} visits={visits} totalsHidden={totalsHidden} />;
 }
 
-function Chrome({ url, visits }: { url: string; visits: number | null }) {
+function Chrome({ url, visits, totalsHidden }: { url: string; visits: number | null; totalsHidden: boolean }) {
   const year = new Date().getFullYear();
   // Like a tab, a pressed button lights at once; the page follows.
   const [pending, setPending] = useState<{ href: string; from: string } | null>(null);
@@ -94,6 +95,7 @@ function Chrome({ url, visits }: { url: string; visits: number | null }) {
           ))}
         </div>
         <div className="toolbar-tools">
+          <HideTotals initial={totalsHidden} />
           <CopyBrief />
           <a href="/api/export" download className="tool">
             <XpIcon name="save" />

@@ -2,7 +2,7 @@ import { dec } from "@/calc/money";
 import { loadOverview } from "@/server/overview";
 import { saleBasisAction, taxPaidAction, undoTaxPaidAction, voidSaleAction } from "../actions";
 import { ActionForm, Submit } from "../ActionForm";
-import { Done, eur, Field, formatDate, today, unitsText } from "../ui";
+import { Amt, Done, eur, Field, formatDate, today, unitsText } from "../ui";
 
 export const dynamic = "force-dynamic";
 
@@ -25,12 +25,12 @@ export default async function TaxPage({ searchParams }: { searchParams: Promise<
           <div className="card card-pad">
             <dl className="kv">
               <dt>Sold for</dt>
-              <dd>{eur(year.proceedsEUR)}</dd>
+              <dd><Amt>{eur(year.proceedsEUR)}</Amt></dd>
               <dt>Net gain</dt>
-              <dd>{eur(year.gainEUR)}</dd>
+              <dd><Amt>{eur(year.gainEUR)}</Amt></dd>
               <dt>Estimated tax</dt>
               <dd>
-                <strong>{eur(year.taxEUR)}</strong>
+                <strong><Amt>{eur(year.taxEUR)}</Amt></strong>
               </dd>
               <dt>Due by</dt>
               <dd>{formatDate(year.dueBy)}</dd>
@@ -38,7 +38,7 @@ export default async function TaxPage({ searchParams }: { searchParams: Promise<
               <dd>
                 {year.settled ? (
                   <span className="up">
-                    Paid {formatDate(year.settled.paidAt)} ({eur(year.settled.amountEUR)})
+                    Paid {formatDate(year.settled.paidAt)} (<Amt>{eur(year.settled.amountEUR)}</Amt>)
                   </span>
                 ) : (
                   "Not paid yet"
@@ -52,15 +52,15 @@ export default async function TaxPage({ searchParams }: { searchParams: Promise<
               <div key={sale.id} className="row" style={{ display: "block" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                   <span>
-                    {formatDate(sale.soldAt)} · {unitsText(sale.quantity)} {sale.holding}
+                    {formatDate(sale.soldAt)} · <Amt units>{unitsText(sale.quantity)}</Amt> {sale.holding}
                   </span>
-                  <span className="row-value">{eur(sale.proceedsEUR)}</span>
+                  <span className="row-value"><Amt>{eur(sale.proceedsEUR)}</Amt></span>
                 </div>
                 <div className="row-sub">
                   {sale.costBasisEUR ? (
                     <>
-                      Cost {eur(sale.costBasisEUR)} ({sale.costBasisSource === "manual" ? "entered" : "FIFO"}) ·{" "}
-                      {dec(sale.gainEUR ?? 0).isNegative() ? "loss" : "gain"} {eur(dec(sale.gainEUR ?? 0).abs().toString())}
+                      Cost <Amt>{eur(sale.costBasisEUR)}</Amt> ({sale.costBasisSource === "manual" ? "entered" : "FIFO"}) ·{" "}
+                      {dec(sale.gainEUR ?? 0).isNegative() ? "loss" : "gain"} <Amt>{eur(dec(sale.gainEUR ?? 0).abs().toString())}</Amt>
                     </>
                   ) : (
                     <span className="stale">Cost basis unknown: not in the estimate</span>

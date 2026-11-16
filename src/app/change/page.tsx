@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { loadOverview, type Overview } from "@/server/overview";
 import { ACCOUNT_TYPE_LABELS, ACCOUNT_TYPES, OTHER_ASSET_CATEGORIES } from "@/shared/inputs";
 import {
@@ -14,7 +15,7 @@ import {
 } from "../actions";
 import { ActionForm, Submit } from "../ActionForm";
 import { XpIcon } from "../icons";
-import { eur, Field, today, unitsText } from "../ui";
+import { Amt, eur, Field, Masked, today, unitsText } from "../ui";
 
 export const dynamic = "force-dynamic";
 
@@ -281,7 +282,7 @@ function ValuesForm({ o }: { o: Overview }) {
                 label={account.name}
                 sub={account.typeLabel}
                 current={account.cashEUR}
-                display={eur(account.cashEUR)}
+                display={<Amt>{eur(account.cashEUR)}</Amt>}
               />
             ))}
             {holdings.length > 0 && (
@@ -296,7 +297,11 @@ function ValuesForm({ o }: { o: Overview }) {
                 label={h.label}
                 sub="units"
                 current={h.units}
-                display={`${unitsText(h.units)} units`}
+                display={
+                  <>
+                    <Amt units>{unitsText(h.units)}</Amt> units
+                  </>
+                }
               />
             ))}
             {o.properties.length > 0 && (
@@ -305,7 +310,7 @@ function ValuesForm({ o }: { o: Overview }) {
               </tr>
             )}
             {o.properties.map((p) => (
-              <ValueRow key={p.id} name={`v:property:${p.id}`} label={p.name} current={p.valueEUR} display={eur(p.valueEUR)} />
+              <ValueRow key={p.id} name={`v:property:${p.id}`} label={p.name} current={p.valueEUR} display={<Amt>{eur(p.valueEUR)}</Amt>} />
             ))}
             {o.liabilities.length > 0 && (
               <tr className="values-head">
@@ -313,7 +318,7 @@ function ValuesForm({ o }: { o: Overview }) {
               </tr>
             )}
             {o.liabilities.map((l) => (
-              <ValueRow key={l.id} name={`v:liability:${l.id}`} label={l.name} current={l.balanceEUR} display={eur(l.balanceEUR)} />
+              <ValueRow key={l.id} name={`v:liability:${l.id}`} label={l.name} current={l.balanceEUR} display={<Amt>{eur(l.balanceEUR)}</Amt>} />
             ))}
             {o.otherAssets.length > 0 && (
               <tr className="values-head">
@@ -321,7 +326,7 @@ function ValuesForm({ o }: { o: Overview }) {
               </tr>
             )}
             {o.otherAssets.map((a) => (
-              <ValueRow key={a.id} name={`v:other_asset:${a.id}`} label={a.name} current={a.valueEUR} display={eur(a.valueEUR)} />
+              <ValueRow key={a.id} name={`v:other_asset:${a.id}`} label={a.name} current={a.valueEUR} display={<Amt>{eur(a.valueEUR)}</Amt>} />
             ))}
           </tbody>
         </table>
@@ -352,7 +357,7 @@ function ValueRow({
   label: string;
   sub?: string;
   current: string;
-  display: string;
+  display: ReactNode;
 }) {
   return (
     <tr>
@@ -607,7 +612,9 @@ function CloseList({ o }: { o: Overview }) {
           <Link key={row.href} href={`${row.href}#close`} className="row">
             <span className="row-main">
               <span className="row-title">{row.label}</span>
-              <span className="row-sub" style={{ display: "block" }}>{row.sub}</span>
+              <span className="row-sub" style={{ display: "block" }}>
+                <Masked text={row.sub} />
+              </span>
             </span>
             <XpIcon name="go" className="row-go" />
           </Link>

@@ -11,7 +11,15 @@ import { useWm, wm, zIndexOf } from "./wm";
 // The app's main window. One fixed size whatever the page; the page inside
 // scrolls. It can be moved, maximized, minimized to the taskbar or closed
 // (opening any page brings it back).
-export function MainWindow({ children, visits }: { children: ReactNode; visits: number | null }) {
+export function MainWindow({
+  children,
+  visits,
+  totalsHidden,
+}: {
+  children: ReactNode;
+  visits: number | null;
+  totalsHidden: boolean;
+}) {
   const s = useWm();
   const w = s.wins.main;
   // The page this window shows (not a page open in another window).
@@ -46,7 +54,7 @@ export function MainWindow({ children, visits }: { children: ReactNode; visits: 
     >
       <header className="win-head">
         <TitleBar id="main" title={title} icon="briefcase" onClose={() => wm.close("main")} onPointerDown={drag.onPointerDown} />
-        <WindowChrome path={path} visits={visits} />
+        <WindowChrome path={path} visits={visits} totalsHidden={totalsHidden} />
       </header>
       {children}
     </div>

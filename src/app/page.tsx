@@ -4,12 +4,14 @@ import { dec } from "@/calc/money";
 import { listActivity, loadOverview, loadSeries } from "@/server/overview";
 import { XpIcon } from "./icons";
 import {
+  Amt,
   Badge,
   Confirmed,
   Done,
   eur,
   formatDate,
   isStale,
+  Masked,
   NetWorthChart,
   priceText,
   signedEur,
@@ -121,7 +123,7 @@ export default async function OverviewPage({
         <span className="strip-wide">{counts}</span>
         <Link href="/tax" className="strip-pill">
           <XpIcon name="calculator" />
-          Tax aside {eur(nw.taxDueEUR)}
+          Tax aside <Amt>{eur(nw.taxDueEUR)}</Amt>
         </Link>
       </div>
 
@@ -154,7 +156,7 @@ export default async function OverviewPage({
                         </span>
                       </span>
                       <span className="own-side">
-                        <span className="own-value">{eur(account.holdings.length ? account.totalEUR : account.cashEUR)}</span>
+                        <span className="own-value"><Amt>{eur(account.holdings.length ? account.totalEUR : account.cashEUR)}</Amt></span>
                         <Badge tone={stale ? "warn" : "good"}>{stale ? "Stale" : "Fresh"}</Badge>
                       </span>
                     </Link>
@@ -169,17 +171,17 @@ export default async function OverviewPage({
                             <span className="own-main">
                               <span className="own-name">{h.label}</span>
                               <span className="own-sub">
-                                {unitsText(h.units)} × {h.priced ? priceText(h.priceEUR) : <span className="down">no price</span>}
+                                <Amt units>{unitsText(h.units)}</Amt> × {h.priced ? priceText(h.priceEUR) : <span className="down">no price</span>}
                                 {h.gainEUR && (
                                   <>
                                     {" · "}
-                                    <span className={dec(h.gainEUR).isNegative() ? "down" : "up"}>{signedEur(h.gainEUR)}</span>
+                                    <span className={dec(h.gainEUR).isNegative() ? "down" : "up"}><Amt>{signedEur(h.gainEUR)}</Amt></span>
                                   </>
                                 )}
                               </span>
                             </span>
                             <span className="own-side">
-                              <span className="own-value">{eur(h.valueEUR)}</span>
+                              <span className="own-value"><Amt>{eur(h.valueEUR)}</Amt></span>
                               {!h.priced && <Badge tone="bad">No price</Badge>}
                             </span>
                           </Link>
@@ -190,7 +192,7 @@ export default async function OverviewPage({
                               <span className="own-sub">Cash</span>
                             </span>
                             <span className="own-side">
-                              <span className="own-value">{eur(account.cashEUR)}</span>
+                              <span className="own-value"><Amt>{eur(account.cashEUR)}</Amt></span>
                             </span>
                           </div>
                         )}
@@ -209,14 +211,20 @@ export default async function OverviewPage({
                     <span className="own-main">
                       <span className="own-name">{p.name}</span>
                       <span className="own-sub">
-                        {eur(p.valueEUR)}
+                        <Amt>{eur(p.valueEUR)}</Amt>
                         {p.ownershipPct !== "100" && ` · ${p.ownershipPct}% yours`}
-                        {dec(p.mortgageEUR).greaterThan(0) && ` · mortgage ${eur(p.mortgageEUR)}`} ·{" "}
+                        {dec(p.mortgageEUR).greaterThan(0) && (
+                          <>
+                            {" · mortgage "}
+                            <Amt>{eur(p.mortgageEUR)}</Amt>
+                          </>
+                        )}{" "}
+                        ·{" "}
                         <Confirmed date={p.valuedAt} asOf={o.asOf} limitDays={FRESHNESS_DAYS.property} />
                       </span>
                     </span>
                     <span className="own-side">
-                      <span className="own-value">{eur(p.equityEUR)}</span>
+                      <span className="own-value"><Amt>{eur(p.equityEUR)}</Amt></span>
                       <Badge tone={stale ? "warn" : "good"}>{stale ? "Stale" : "Fresh"}</Badge>
                     </span>
                   </Link>
@@ -236,7 +244,7 @@ export default async function OverviewPage({
                       </span>
                     </span>
                     <span className="own-side">
-                      <span className="own-value">−{eur(l.balanceEUR)}</span>
+                      <span className="own-value">−<Amt>{eur(l.balanceEUR)}</Amt></span>
                       <Badge tone={stale ? "warn" : "good"}>{stale ? "Stale" : "Fresh"}</Badge>
                     </span>
                   </Link>
@@ -252,7 +260,7 @@ export default async function OverviewPage({
                     <span className="own-sub">{a.includeInNetWorth ? "Counted in net worth" : "Not counted"}</span>
                   </span>
                   <span className="own-side">
-                    <span className="own-value">{eur(a.valueEUR)}</span>
+                    <span className="own-value"><Amt>{eur(a.valueEUR)}</Amt></span>
                     <Badge tone={a.includeInNetWorth ? "info" : "off"}>{a.includeInNetWorth ? "Counted" : "Not counted"}</Badge>
                   </span>
                 </Link>
@@ -272,10 +280,10 @@ export default async function OverviewPage({
                   <span>As of {formatDate(o.asOf)}</span>
                   <span>EUR</span>
                 </div>
-                <div className="hero-value num">{eur(nw.totalEUR)}</div>
+                <div className="hero-value num"><Amt>{eur(nw.totalEUR)}</Amt></div>
                 {monthDelta && (
                   <div className="hero-delta">
-                    <span className={monthDelta.isNegative() ? "down" : "up"}>{signedEur(monthDelta.toString())}</span>{" "}
+                    <span className={monthDelta.isNegative() ? "down" : "up"}><Amt>{signedEur(monthDelta.toString())}</Amt></span>{" "}
                     since the end of last month
                   </div>
                 )}
@@ -310,9 +318,15 @@ export default async function OverviewPage({
                     </span>
                     <span className="msg-main">
                       <span className="msg-head">
-                        <span className="msg-title">{item.title}</span>
+                        <span className="msg-title">
+                          <Masked text={item.title} />
+                        </span>
                       </span>
-                      {item.detail && <span className="msg-text">{item.detail}</span>}
+                      {item.detail && (
+                        <span className="msg-text">
+                          <Masked text={item.detail} />
+                        </span>
+                      )}
                     </span>
                     <XpIcon name="go" className="msg-go" />
                   </Link>
@@ -334,10 +348,16 @@ export default async function OverviewPage({
                   </span>
                   <span className="msg-main">
                     <span className="msg-head">
-                      <span className="msg-title">{entry.title}</span>
+                      <span className="msg-title">
+                      <Masked text={entry.title} />
+                    </span>
                       <span className="msg-time">{formatDate(entry.asOf)}</span>
                     </span>
-                    {entry.note && <span className="msg-text">{entry.note}</span>}
+                    {entry.note && (
+                      <span className="msg-text">
+                        <Masked text={entry.note} />
+                      </span>
+                    )}
                   </span>
                 </div>
               ))}
@@ -381,12 +401,12 @@ export default async function OverviewPage({
                       <span className="row-title">Tax to keep aside</span>
                       <span className="row-sub" style={{ display: "block" }}>Estimated on this year&apos;s sales</span>
                     </span>
-                    <span className="row-value">−{eur(nw.taxDueEUR)}</span>
+                    <span className="row-value">−<Amt>{eur(nw.taxDueEUR)}</Amt></span>
                   </Link>
                 )}
                 <div className="row row-total">
                   <span>Net worth</span>
-                  <span className="row-value">{eur(nw.totalEUR)}</span>
+                  <span className="row-value"><Amt>{eur(nw.totalEUR)}</Amt></span>
                 </div>
               </div>
             </div>
@@ -402,11 +422,11 @@ export default async function OverviewPage({
                   <div className="lcd now">
                     <div className="lcd-row now-main">
                       <span>You spend</span>
-                      <span>{eur(fire.monthlySpendEUR)}/mo</span>
+                      <span><Amt>{eur(fire.monthlySpendEUR)}</Amt>/mo</span>
                     </div>
                     <div className="lcd-row now-sub">
                       <span>→ Safe to spend</span>
-                      <span>{eur(fire.safeMonthlySpendEUR)}/mo</span>
+                      <span><Amt>{eur(fire.safeMonthlySpendEUR)}</Amt>/mo</span>
                     </div>
                     <div className={`led-bar${fire.fits ? "" : " over"}`} aria-hidden="true">
                       {Array.from({ length: SPEND_SEGMENTS }, (_, i) => (
@@ -448,7 +468,7 @@ export default async function OverviewPage({
                             {plan.note && ` · ${plan.note}`}
                           </span>
                         </span>
-                        <span className="queue-value">{plan.amountTBD ? "TBD" : eur(plan.amount)}</span>
+                        <span className="queue-value">{plan.amountTBD ? "TBD" : <Amt>{eur(plan.amount)}</Amt>}</span>
                       </Link>
                     </li>
                   ))}
@@ -479,7 +499,7 @@ function SummaryRow({ label, value, sub }: { label: string; value: string; sub?:
         <span className="row-title">{label}</span>
         {sub && <span className="row-sub" style={{ display: "block" }}>{sub}</span>}
       </span>
-      <span className="row-value">{eur(value)}</span>
+      <span className="row-value"><Amt>{eur(value)}</Amt></span>
     </div>
   );
 }

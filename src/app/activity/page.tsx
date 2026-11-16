@@ -1,5 +1,5 @@
 import { listActivity, loadOverview } from "@/server/overview";
-import { formatDate } from "../ui";
+import { formatDate, Masked } from "../ui";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,9 @@ export default async function ActivityPage() {
         {entries.map((entry) => (
           <div key={entry.id} className="row" style={{ display: "block" }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-              <strong style={{ fontWeight: 600 }}>{entry.title}</strong>
+              <strong style={{ fontWeight: 600 }}>
+                <Masked text={entry.title} />
+              </strong>
               <span className="muted small" style={{ whiteSpace: "nowrap" }}>
                 {formatDate(entry.asOf)}
               </span>
@@ -25,12 +27,18 @@ export default async function ActivityPage() {
                 {entry.lines.map((line, index) => (
                   <li key={`${line.label}-${index}`}>
                     <span>{line.label}</span>
-                    <span className="num">{line.value}</span>
+                    <span className="num">
+                      <Masked text={line.value} />
+                    </span>
                   </li>
                 ))}
               </ul>
             )}
-            {entry.note && <div className="row-sub">{entry.note}</div>}
+            {entry.note && (
+              <div className="row-sub">
+                <Masked text={entry.note} />
+              </div>
+            )}
           </div>
         ))}
       </div>

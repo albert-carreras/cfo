@@ -1264,6 +1264,25 @@ details.more[open] > summary { margin-bottom: 12px; }
 .start-items a:hover, .start-items a:focus-visible { outline: 0; background: #0b3fb6; color: #fff; }
 .start-items hr { margin: 4px 6px; border: 0; border-top: 1px solid #8a8a8a; border-bottom: 1px solid #fff; }
 
+/* ── Hide totals ─────────────────────────────────────────── */
+
+/* Every personal figure is wrapped in .amt: the real value and a fixed row of
+   password dots (fixed, so the dots don't give away how big a number is). */
+.amt-h { display: none; letter-spacing: 0.06em; white-space: nowrap; }
+html.hide-totals .amt-v { display: none; }
+html.hide-totals .amt-h { display: inline; }
+/* Amount fields show dots too, like a password box, except while you type. */
+html.hide-totals .input[inputmode="decimal"]:not(:focus) { -webkit-text-security: disc; }
+html.hide-totals .input[inputmode="decimal"]:not(:focus)::placeholder { color: transparent; }
+@supports not (-webkit-text-security: disc) {
+  html.hide-totals .input[inputmode="decimal"]:not(:focus) { color: transparent; text-shadow: 0 0 9px rgba(242, 244, 248, 0.9); }
+}
+/* The switch stays pressed in while totals are hidden. */
+.tool[aria-pressed="true"] {
+  background: linear-gradient(180deg, #b9bdc5 0%, #ced1d7 50%, #dfe2e6 100%);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.35), 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
 /* ── Window effects ──────────────────────────────────────── */
 
 /* The grey outline that grows from an icon or taskbar button up to a window
@@ -1383,6 +1402,7 @@ html.opening-transfers [data-win="transfers"] {
   .eq span:nth-child(n + 10) { display: none; }
   .toolbar { flex-direction: column; align-items: stretch; margin: 12px 10px 0; padding: 8px; gap: 8px; }
   .toolbar-main, .toolbar-tools { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .toolbar-tools { grid-template-columns: 1fr 1fr auto; }
   .tool { justify-content: flex-start; min-height: 44px; padding: 6px 10px; font-size: 0.92rem; white-space: normal; text-align: left; }
   .toolbar-tools .tool { justify-content: center; min-height: 38px; }
   .status-strip { font-size: 0.85rem; gap: 6px 10px; }

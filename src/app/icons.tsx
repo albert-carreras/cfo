@@ -34,7 +34,8 @@ export type XpIconName =
   | "zip"
   | "txt"
   | "xml"
-  | "folder-open";
+  | "folder-open"
+  | "padlock";
 
 export function XpIcon({ name, className }: { name: XpIconName; className?: string }) {
   return (

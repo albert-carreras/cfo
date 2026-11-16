@@ -3,7 +3,7 @@ import { PLANNING_INPUTS } from "@/shared/inputs";
 import { inputsAction } from "../actions";
 import { ActionForm, Submit } from "../ActionForm";
 import { dec } from "@/calc/money";
-import { Done, eur, Field, formatDate } from "../ui";
+import { Amt, Done, eur, Field, formatDate } from "../ui";
 
 export const dynamic = "force-dynamic";
 
@@ -18,13 +18,13 @@ export default async function InputsPage({ searchParams }: { searchParams: Promi
       <div className="card card-pad">
         <dl className="kv">
           <dt>Cash + investments, after tax due</dt>
-          <dd>{eur(fire.availableEUR)}</dd>
+          <dd><Amt>{eur(fire.availableEUR)}</Amt></dd>
           <dt>Safe to spend per month</dt>
-          <dd>{eur(fire.safeMonthlySpendEUR)}</dd>
+          <dd><Amt>{eur(fire.safeMonthlySpendEUR)}</Amt></dd>
           <dt>You spend per month</dt>
-          <dd>{eur(fire.monthlySpendEUR)}</dd>
+          <dd><Amt>{eur(fire.monthlySpendEUR)}</Amt></dd>
           <dt>Room left</dt>
-          <dd className={fire.fits === false ? "down" : undefined}>{eur(fire.headroomEUR)}</dd>
+          <dd className={fire.fits === false ? "down" : undefined}><Amt>{eur(fire.headroomEUR)}</Amt></dd>
           <dt>Lasts with zero growth</dt>
           <dd>{fire.runwayYears === null ? "—" : `${fire.runwayYears} years`}</dd>
         </dl>

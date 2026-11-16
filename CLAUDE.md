@@ -73,6 +73,12 @@ The logo capsule reads "You've got money!" with a hit counter: a real count of h
 the app has been opened (full page loads, not moving around inside it), kept as the `visits` row
 in `settings` (`src/server/visits.ts`, bumped once per load via `POST /api/visit`).
 
+"Hide totals" (a toolbar switch, remembered per device in the `cfo-hide-totals` cookie so the
+server paints the first frame already hidden) turns every personal figure into password dots.
+Render personal figures through `<Amt>` (or `<Masked text>` for sentences with € amounts in
+them) from `src/app/ui.tsx`; unit prices are public market data and stay visible. Option text in
+forms can't be styled, so it still shows amounts.
+
 Decoration, never data: the equalizer in the logo capsule and the Transfers window
 (`Downloader.tsx`), which pretends to download files at dial-up speeds and shows its rate in the
 tray. The summary's equalizer bars and the spending meter are only shapes of figures shown next

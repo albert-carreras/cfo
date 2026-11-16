@@ -21,6 +21,28 @@ export function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// A personal figure. With "Hide totals" on it shows as dots, like a password
+// field; the real figure is not shown at all.
+export function Amt({ children, units = false }: { children: ReactNode; units?: boolean }) {
+  return (
+    <span className="amt">
+      <span className="amt-v">{children}</span>
+      <span className="amt-h" role="img" aria-label="Hidden">
+        {units ? "●●●" : "€●●●●●"}
+      </span>
+    </span>
+  );
+}
+
+const MONEY_IN_TEXT = /([+−-]?€\s?\d[\d.,]*(?:\s?[kKmM]\b)?)/;
+
+// A sentence from the record ("€3,200/month against €1,017/month") with its
+// € amounts hidable.
+export function Masked({ text }: { text: string }) {
+  const parts = text.split(MONEY_IN_TEXT);
+  return <>{parts.map((part, i) => (i % 2 === 1 ? <Amt key={i}>{part}</Amt> : part))}</>;
+}
+
 export function Done({ message }: { message?: string }) {
   if (!message) return null;
   return <p className="alert alert-good">{message}.</p>;
@@ -58,7 +80,7 @@ export function Field({
   help,
   children,
 }: {
-  label: string;
+  label: ReactNode;
   help?: ReactNode;
   children: ReactNode;
 }) {
@@ -96,7 +118,7 @@ export function NetWorthChart({ points }: { points: { asOf: string; totalEUR: nu
       <figcaption className="chart-caption">
         <span>{formatDate(first.asOf)}</span>
         <span>
-          {signedEur(last.totalEUR - first.totalEUR)} over the period
+          <Amt>{signedEur(last.totalEUR - first.totalEUR)}</Amt> over the period
         </span>
       </figcaption>
     </figure>

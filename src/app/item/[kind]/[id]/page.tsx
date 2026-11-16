@@ -6,7 +6,7 @@ import { loadOverview, type Overview } from "@/server/overview";
 import { ACCOUNT_TYPE_LABELS, ACCOUNT_TYPES, OTHER_ASSET_CATEGORIES } from "@/shared/inputs";
 import { addLotAction, closeItemAction, editItemAction, setValuesAction } from "../../../actions";
 import { ActionForm, Submit } from "../../../ActionForm";
-import { Confirmed, Done, eur, Field, formatDate, priceText, signedEur, today, unitsText } from "../../../ui";
+import { Amt, Confirmed, Done, eur, Field, formatDate, priceText, signedEur, today, unitsText } from "../../../ui";
 
 export const dynamic = "force-dynamic";
 
@@ -123,18 +123,18 @@ function AccountItem({ account, o }: { account: Overview["accounts"][number]; o:
       <div className="card">
         <div className="row">
           <span>Cash</span>
-          <span className="row-value">{eur(account.cashEUR)}</span>
+          <span className="row-value"><Amt>{eur(account.cashEUR)}</Amt></span>
         </div>
         {account.holdings.map((h) => (
           <Link key={h.id} href={`/item/holding/${h.id}`} className="row">
             <span>{h.label}</span>
-            <span className="row-value">{eur(h.valueEUR)}</span>
+            <span className="row-value"><Amt>{eur(h.valueEUR)}</Amt></span>
           </Link>
         ))}
         {account.holdings.length > 0 && (
           <div className="row row-total">
             <span>Total</span>
-            <span className="row-value">{eur(account.totalEUR)}</span>
+            <span className="row-value"><Amt>{eur(account.totalEUR)}</Amt></span>
           </div>
         )}
       </div>
@@ -174,7 +174,11 @@ function AccountItem({ account, o }: { account: Overview["accounts"][number]; o:
           <input type="hidden" name="id" value={account.id} />
           {!dec(account.cashEUR).isZero() && (
             <Field
-              label={`It still shows ${eur(account.cashEUR)}. What happened to it?`}
+              label={
+                <>
+                  It still shows <Amt>{eur(account.cashEUR)}</Amt>. What happened to it?
+                </>
+              }
               help="If you already typed the other account's current balance, the money is counted there: pick the first option."
             >
               <select name="moveTo" className="input" defaultValue="">
@@ -220,7 +224,7 @@ function HoldingItem({
       <div className="card card-pad">
         <dl className="kv">
           <dt>Units</dt>
-          <dd>{unitsText(holding.units)}</dd>
+          <dd><Amt units>{unitsText(holding.units)}</Amt></dd>
           <dt>Price</dt>
           <dd>
             {holding.priced ? (
@@ -232,13 +236,13 @@ function HoldingItem({
             )}
           </dd>
           <dt>Value</dt>
-          <dd>{eur(holding.valueEUR)}</dd>
+          <dd><Amt>{eur(holding.valueEUR)}</Amt></dd>
           <dt>Cost basis (FIFO)</dt>
-          <dd>{holding.costBasisEUR ? eur(holding.costBasisEUR) : "unknown"}</dd>
+          <dd>{holding.costBasisEUR ? <Amt>{eur(holding.costBasisEUR)}</Amt> : "unknown"}</dd>
           {holding.gainEUR && (
             <>
               <dt>Gain if sold today</dt>
-              <dd className={dec(holding.gainEUR).isNegative() ? "down" : "up"}>{signedEur(holding.gainEUR)}</dd>
+              <dd className={dec(holding.gainEUR).isNegative() ? "down" : "up"}><Amt>{signedEur(holding.gainEUR)}</Amt></dd>
             </>
           )}
           <dt>Units confirmed</dt>
@@ -266,9 +270,9 @@ function HoldingItem({
         {holding.lots.map((lot) => (
           <div key={lot.id} className="row">
             <span>
-              {formatDate(lot.buyDate)} · {unitsText(lot.quantity)} units
+              {formatDate(lot.buyDate)} · <Amt units>{unitsText(lot.quantity)}</Amt> units
             </span>
-            <span className="row-value">{eur(lot.costBasisEUR)}</span>
+            <span className="row-value"><Amt>{eur(lot.costBasisEUR)}</Amt></span>
           </div>
         ))}
       </div>
@@ -341,21 +345,23 @@ function PropertyItem({ property, o }: { property: Overview["properties"][number
       <div className="card card-pad">
         <dl className="kv">
           <dt>Full value</dt>
-          <dd>{eur(property.valueEUR)}</dd>
+          <dd><Amt>{eur(property.valueEUR)}</Amt></dd>
           <dt>Your share</dt>
           <dd>
-            {property.ownershipPct}% = {eur(property.shareEUR)}
+            {property.ownershipPct}% = <Amt>{eur(property.shareEUR)}</Amt>
           </dd>
           {dec(property.mortgageEUR).greaterThan(0) && (
             <>
               <dt>Mortgage</dt>
-              <dd>−{eur(property.mortgageEUR)}</dd>
+              <dd>−<Amt>{eur(property.mortgageEUR)}</Amt></dd>
             </>
           )}
           <dt>Your equity</dt>
-          <dd>{eur(property.equityEUR)}</dd>
+          <dd><Amt>{eur(property.equityEUR)}</Amt></dd>
           <dt>Purchase price</dt>
-          <dd>{property.purchasePrice ? eur(property.purchasePrice) : <span className="stale">not recorded</span>}</dd>
+          <dd>
+            {property.purchasePrice ? <Amt>{eur(property.purchasePrice)}</Amt> : <span className="stale">not recorded</span>}
+          </dd>
         </dl>
       </div>
 
@@ -432,11 +438,11 @@ function DebtItem({ debt, o }: { debt: Overview["liabilities"][number]; o: Overv
       <div className="card card-pad">
         <dl className="kv">
           <dt>Still owed</dt>
-          <dd>{eur(debt.balanceEUR)}</dd>
+          <dd><Amt>{eur(debt.balanceEUR)}</Amt></dd>
           <dt>Rate</dt>
           <dd>{debt.rate ? `${dec(debt.rate).times(100).toString()}%` : "—"}</dd>
           <dt>Payment / month</dt>
-          <dd>{eur(debt.payment)}</dd>
+          <dd><Amt>{eur(debt.payment)}</Amt></dd>
         </dl>
       </div>
       <h2>Update the balance</h2>
@@ -495,7 +501,7 @@ function OtherItem({ asset, o }: { asset: Overview["otherAssets"][number]; o: Ov
       <div className="card">
         <div className="row">
           <span>Value</span>
-          <span className="row-value">{eur(asset.valueEUR)}</span>
+          <span className="row-value"><Amt>{eur(asset.valueEUR)}</Amt></span>
         </div>
       </div>
       <h2>Update the value</h2>

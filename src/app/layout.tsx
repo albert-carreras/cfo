@@ -6,7 +6,9 @@ import { Downloader } from "./Downloader";
 import { MainWindow } from "./MainWindow";
 import { NavWatcher } from "./NavWatcher";
 import { Taskbar } from "./Taskbar";
+import { cookies } from "next/headers";
 import { readVisits } from "@/server/visits";
+import { HIDE_TOTALS_COOKIE } from "./totals";
 
 // Every page reads the database; nothing is prerendered. (This also lets the
 // window chrome read the address's query without a Suspense placeholder.)
@@ -30,14 +32,17 @@ export const metadata: Metadata = {
 // when a page opens in one of its own (the `win` slot), the transfers window
 // and the taskbar.
 export default async function RootLayout({ children, win }: { children: ReactNode; win: ReactNode }) {
-  const visits = await readVisits();
+  const [visits, jar] = await Promise.all([readVisits(), cookies()]);
+  const totalsHidden = jar.get(HIDE_TOTALS_COOKIE)?.value === "1";
   return (
-    <html lang="en">
+    <html lang="en" className={totalsHidden ? "hide-totals" : undefined}>
       <body>
         <div className="desktop">
           <DesktopIcons />
           <div className="desk-main">
-            <MainWindow visits={visits}>{children}</MainWindow>
+            <MainWindow visits={visits} totalsHidden={totalsHidden}>
+              {children}
+            </MainWindow>
             {win}
           </div>
         </div>
