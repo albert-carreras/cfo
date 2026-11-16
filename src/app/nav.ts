@@ -55,6 +55,38 @@ export function useMainHistory() {
   return useSyncExternalStore(mainHistory.subscribe, mainHistory.get, mainHistory.server);
 }
 
+// --- Asking for a second window ---------------------------------------------
+
+// Opening a window-of-its-own page asks the second window to show itself, even
+// when it already holds that page (closed or minimized), where the route alone
+// would not change.
+type SideRequest = { path: string | null; n: number };
+let sideRequest: SideRequest = { path: null, n: 0 };
+const sideListeners = new Set<() => void>();
+const NO_REQUEST: SideRequest = { path: null, n: 0 };
+
+export function requestSide(path: string) {
+  sideRequest = { path, n: sideRequest.n + 1 };
+  for (const listener of sideListeners) listener();
+}
+
+export function currentSideRequest() {
+  return sideRequest;
+}
+
+export function useSideRequest() {
+  return useSyncExternalStore(
+    (listener) => {
+      sideListeners.add(listener);
+      return () => {
+        sideListeners.delete(listener);
+      };
+    },
+    () => sideRequest,
+    () => NO_REQUEST,
+  );
+}
+
 // --- Busy cursor -------------------------------------------------------------
 
 let busyTimer: ReturnType<typeof setTimeout> | undefined;
@@ -94,31 +126,40 @@ export function recentSubmitIn(windowId: string, withinMs = 20_000) {
   return submittedIn === windowId && Date.now() - submittedAt < withinMs;
 }
 
-// --- The caption zoom --------------------------------------------------------
+// --- The zoom outline -------------------------------------------------------
 
-// Windows XP animates a title bar flying between a window and where it comes
-// from or goes to (an icon, a taskbar button).
-export function zoomCaption(from: DOMRect | null | undefined, to: DOMRect | null | undefined, title: string, done?: () => void) {
-  if (typeof document === "undefined" || !from || !to || (to.width === 0 && to.height === 0)) {
+// Classic Windows opening and minimizing: grey outline rectangles that grow
+// from where a window comes from (an icon, a link, a taskbar button) up to the
+// window, or shrink back down to its taskbar button.
+export function zoomOutline(from: DOMRect | null | undefined, to: DOMRect | null | undefined, done?: () => void) {
+  if (typeof document === "undefined" || !from || !to || to.width === 0 || to.height === 0) {
     done?.();
     return;
   }
-  const el = document.createElement("div");
-  el.className = "zoom-caption";
-  el.textContent = title;
-  document.body.appendChild(el);
-  const frame = (r: DOMRect) => {
-    const height = Math.min(Math.max(r.height, 22), 31);
-    return {
-      left: `${r.left}px`,
-      top: `${r.top + (r.height - height) / 2}px`,
-      width: `${Math.max(r.width, 60)}px`,
-      height: `${height}px`,
+  const frame = (r: DOMRect) => ({
+    left: `${r.left}px`,
+    top: `${r.top}px`,
+    width: `${Math.max(r.width, 24)}px`,
+    height: `${Math.max(r.height, 16)}px`,
+  });
+  const steps = 4;
+  const duration = 240;
+  let finished = 0;
+  for (let i = 0; i < steps; i++) {
+    const el = document.createElement("div");
+    el.className = "zoom-outline";
+    el.style.opacity = "0";
+    document.body.appendChild(el);
+    const animation = el.animate(
+      [
+        { ...frame(from), opacity: 1 },
+        { ...frame(to), opacity: 1 },
+      ],
+      { duration, delay: i * 45, easing: "linear", fill: "both" },
+    );
+    animation.onfinish = () => {
+      el.remove();
+      if (++finished === steps) done?.();
     };
-  };
-  const animation = el.animate([frame(from), frame(to)], { duration: 220, easing: "ease-out", fill: "forwards" });
-  animation.onfinish = () => {
-    el.remove();
-    done?.();
-  };
+  }
 }

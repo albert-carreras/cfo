@@ -1,13 +1,13 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import type { XpIconName } from "./icons";
-import { mainHistory, recentSubmitIn, takeRect } from "./nav";
+import { currentSideRequest, mainHistory, recentSubmitIn, takeRect, useSideRequest } from "./nav";
 import { isSideRoute } from "./routes";
 import { TitleBar } from "./TitleBar";
 import { useWindowDrag } from "./useWindowDrag";
-import { appear } from "./winfx";
+import { bringUp } from "./winfx";
 import { useWm, wm, zIndexOf } from "./wm";
 
 // A second window over the main one, for a page opened from inside the app:
@@ -27,15 +27,28 @@ export function SideWindow({
   const w = s.wins.side;
   const pathname = usePathname();
   const router = useRouter();
+  const request = useSideRequest();
+  const handled = useRef(request.n);
   const drag = useWindowDrag(!w.maximized);
   const moved = drag.offset.x !== 0 || drag.offset.y !== 0;
   const fullTitle = `CFO - ${title}`;
 
-  // A new page for this window: open it, flying in from what was clicked.
+  // A new page for this window: show it, growing from what was clicked.
   useEffect(() => {
+    handled.current = currentSideRequest().n;
     wm.set("side", { title: fullTitle, icon });
-    appear("side", takeRect());
+    bringUp("side", takeRect());
   }, [route, fullTitle, icon]);
+
+  // Asked again for the page this window already holds (closed or minimized
+  // since): the route has not changed, so only the request brings it back.
+  useEffect(() => {
+    if (request.n === handled.current) return;
+    handled.current = request.n;
+    if (request.path !== route) return;
+    wm.set("side", { title: fullTitle, icon });
+    bringUp("side", takeRect());
+  }, [request, route, fullTitle, icon]);
 
   useEffect(() => () => wm.close("side"), []);
 

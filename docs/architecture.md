@@ -27,9 +27,10 @@ prices + FX feed ────┼─> Postgres: facts, movements, observations, s
 - **UI:** server components in `src/app`. Forms post through `ActionForm`, which keeps what was
   typed when a flow rejects it (`RecordError`) and shows why.
 - **Windows:** the root layout draws an XP desktop. Pages render in the main window; the `@win`
-  slot intercepts `/tax`, `/plans`, `/inputs` and `/item/*` on in-app navigation and shows them in
-  a second window, while a direct load renders them in the main window. Window state (open,
-  minimized, maximized, focus, stacking) is a small client store in `src/app/wm.ts`.
+  slot intercepts `/tax`, `/plans`, `/inputs` and `/item/*` and shows them in a second window. A
+  direct load of one of those is turned into the same state (overview in the main window, the
+  page in the second). Window state (open, minimized, maximized, focus, stacking) is a small
+  client store in `src/app/wm.ts`; navigation bookkeeping is in `src/app/nav.ts`.
 
 ## Automation
 

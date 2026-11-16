@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { XpIcon, type XpIconName } from "./icons";
-import { rememberRect, setBusy } from "./nav";
+import { rememberRect, requestSide, setBusy } from "./nav";
 import { isSideRoute } from "./routes";
 import { appear } from "./winfx";
 import { wm } from "./wm";
@@ -52,15 +52,18 @@ export function DesktopIcons() {
     }
     const rect = el.getBoundingClientRect();
     if (isSideRoute(item.href)) {
-      // Opens in a window of its own, flying in from the icon.
+      // Opens in a window of its own, growing out of the icon.
       rememberRect(rect);
+      requestSide(item.href);
     } else {
       const main = wm.get().wins.main;
       if (!main.open || main.minimized) appear("main", rect);
       else wm.focus("main");
     }
-    if (window.location.pathname + window.location.search !== item.href) setBusy(true);
-    router.push(item.href);
+    if (window.location.pathname + window.location.search !== item.href) {
+      setBusy(true);
+      router.push(item.href);
+    }
   }
 
   return (

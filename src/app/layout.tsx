@@ -7,6 +7,10 @@ import { MainWindow } from "./MainWindow";
 import { NavWatcher } from "./NavWatcher";
 import { Taskbar } from "./Taskbar";
 
+// Every page reads the database; nothing is prerendered. (This also lets the
+// window chrome read the address's query without a Suspense placeholder.)
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "CFO",
   description: "Personal financial record: what you own, what changed, what needs you.",

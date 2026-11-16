@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState, type CSSProperties } from "react";
+import { useState, type CSSProperties, type MouseEvent } from "react";
 import { CopyBrief } from "./CopyBrief";
 import { XpIcon, type XpIconName } from "./icons";
 import { mainHistory, setBusy, useMainHistory } from "./nav";
@@ -25,8 +25,9 @@ function activeHref(url: string) {
   return null;
 }
 
-// The main window's address, with its query when known.
-function useMainUrl(path: string) {
+// The main window's address from its history, for when the browser's address
+// belongs to another window.
+function useRememberedUrl(path: string) {
   const history = useMainHistory();
   const current = history.stack[history.index];
   return current && current.split("?")[0] === path ? current : path;
@@ -34,12 +35,25 @@ function useMainUrl(path: string) {
 
 // The fixed top of the main window under its title bar: logo capsule, the
 // button row that is the main navigation, and an Explorer-style address bar.
+// When the address is this window's own page, its query is right here, so
+// the lit button and the address are right on the first paint.
 export function WindowChrome({ path }: { path: string }) {
-  const url = useMainUrl(path);
+  const remembered = useRememberedUrl(path);
+  const pathname = usePathname();
+  const search = useSearchParams().toString();
+  const url = pathname === path ? (search ? `${path}?${search}` : path) : remembered;
+  return <Chrome url={url} />;
+}
+
+function Chrome({ url }: { url: string }) {
   const year = new Date().getFullYear();
   // Like a tab, a pressed button lights at once; the page follows.
   const [pending, setPending] = useState<{ href: string; from: string } | null>(null);
   const active = pending && pending.from === url ? pending.href : activeHref(url);
+  const press = (href: string) => (event: MouseEvent) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    setPending({ href, from: url });
+  };
 
   return (
     <>
@@ -49,7 +63,7 @@ export function WindowChrome({ path }: { path: string }) {
           <span className="logo-text">CFO</span>
           <span className="logo-year">{year}</span>
         </Link>
-        <span className="logobar-tag">Every number verified or calculated.</span>
+        <span className="logobar-tag">Your money. 100% Y2K compliant.</span>
         {/* Decorative equalizer. Not data. */}
         <span className="eq" aria-hidden="true">
           {Array.from({ length: 14 }, (_, i) => (
@@ -65,7 +79,7 @@ export function WindowChrome({ path }: { path: string }) {
               href={item.href}
               className="tool"
               aria-current={active === item.href ? "page" : undefined}
-              onClick={() => setPending({ href: item.href, from: url })}
+              onClick={press(item.href)}
             >
               <XpIcon name={item.icon} />
               {item.label}
@@ -80,18 +94,9 @@ export function WindowChrome({ path }: { path: string }) {
           </a>
         </div>
       </nav>
-      <Suspense fallback={<AddressBar url={url} />}>
-        <LiveAddressBar path={path} url={url} />
-      </Suspense>
+      <AddressBar url={url} />
     </>
   );
-}
-
-function LiveAddressBar({ path, url }: { path: string; url: string }) {
-  const pathname = usePathname();
-  const search = useSearchParams().toString();
-  // When the address is this window's own page, its query is right here.
-  return <AddressBar url={pathname === path ? (search ? `${path}?${search}` : path) : url} />;
 }
 
 function AddressBar({ url }: { url: string }) {
@@ -101,7 +106,7 @@ function AddressBar({ url }: { url: string }) {
   const go = (to: string | null) => {
     if (!to) return;
     setBusy(true);
-    wm.open("main");
+    wm.focus("main");
     router.push(to);
   };
   return (

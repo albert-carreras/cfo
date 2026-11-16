@@ -133,7 +133,7 @@ export default async function OverviewPage({
                 <XpIcon name="folder" />
                 What you own
               </h2>
-              <Link href="/change?do=add" className="pane-tab">
+              <Link href="/change?do=add" className="pane-add">
                 + Add
               </Link>
             </div>

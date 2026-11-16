@@ -61,10 +61,12 @@ purple selection and LED meters.
 Windows behave like XP's (`src/app/wm.ts` holds their state): one fixed size whatever the page,
 draggable by the title bar, minimize/maximize/close, focus and stacking, a taskbar button each.
 The desktop never scrolls; only a window's content area does. The main window
-(`MainWindow` + `WindowChrome` in the layout) shows the page for the address. Tax, Plans, Inputs
-and item pages opened from inside the app open in a second window instead (the `@win` slot with
-intercepting routes, `SideWindow`); loaded directly they fill the main window. Desktop icons
-select on one click and open on a double click. Icons and cursors are real Windows XP artwork in
+(`MainWindow` + `WindowChrome` in the layout) shows the overview, Something happened and Activity.
+Tax, Plans, Inputs and item pages always open in a second window (the `@win` slot with
+intercepting routes, `SideWindow`); loaded directly, the overview comes up with them in that
+window. Opening a page asks the second window to show itself (`requestSide`), so it reopens even
+when it already holds that page. Windows open and minimize with the classic grey zoom outline.
+Desktop icons select on one click and open on a double click. Icons and cursors are real Windows XP artwork in
 `public/xp/` (Microsoft's, not under this repo's license; see its NOTICE).
 
 Decoration, never data: the equalizer in the logo capsule and the Transfers window
