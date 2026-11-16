@@ -79,23 +79,14 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Day wallpaper: blue sky, soft clouds, a green hill. A fixed layer, because
-   background-attachment: fixed is unreliable on phones. */
+/* The wallpaper: Bliss, XP's own (public/xp/bliss.jpg). A fixed layer,
+   because background-attachment: fixed is unreliable on phones. */
 body::before {
   content: "";
   position: fixed;
   inset: 0;
   z-index: -1;
-  background:
-    radial-gradient(ellipse 120% 40% at 30% 118%, #3f8f1e 0 55%, transparent 56%),
-    radial-gradient(ellipse 140% 42% at 20% 112%, #5aa82a 0 55%, transparent 56%),
-    radial-gradient(ellipse 120% 36% at 90% 115%, #6fbd38 0 55%, transparent 56%),
-    radial-gradient(ellipse 16% 5% at 22% 20%, rgba(255, 255, 255, 0.9), transparent 70%),
-    radial-gradient(ellipse 26% 6% at 32% 23%, rgba(255, 255, 255, 0.8), transparent 70%),
-    radial-gradient(ellipse 22% 5% at 74% 12%, rgba(255, 255, 255, 0.75), transparent 70%),
-    radial-gradient(ellipse 12% 4% at 86% 36%, rgba(255, 255, 255, 0.65), transparent 70%),
-    radial-gradient(ellipse 18% 4% at 8% 50%, rgba(255, 255, 255, 0.6), transparent 70%),
-    linear-gradient(180deg, #1b56c9 0%, #3c84e6 38%, #8cc3f4 66%, #d8edfc 84%, #e9f5ff 100%);
+  background: #3a7be0 url("/xp/bliss.jpg") center / cover no-repeat;
 }
 
 a { color: inherit; }

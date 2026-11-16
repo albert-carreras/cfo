@@ -52,7 +52,7 @@ If code contradicts a doc, update the doc in the same change.
   `/api/cron/monthly` — the monthly push.
 
 The UI is phone-first and wears a retro skin from `src/app/globals.css`, in one theme only: a
-Windows XP desktop (wallpaper, desktop shortcuts, classic grey taskbar whose Start menu lists every
+Windows XP desktop (the Bliss wallpaper, desktop shortcuts, classic grey taskbar whose Start menu lists every
 page, XP cursors) with media-player style windows on it: XP Luna title bars, brushed silver metal,
 a glossy logo capsule, big silver pill buttons as the main nav, an Explorer address bar with
 Back/Forward/Up, a black LCD status strip, and dark rounded panels with glowing status pills,
