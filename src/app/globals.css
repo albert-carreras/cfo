@@ -158,14 +158,19 @@ button, input, select, textarea { font: inherit; color: inherit; }
   max-width: 66rem;
   margin: 0 auto;
   padding: 0 12px 14px;
-  border: 1px solid #1d3b8f;
-  border-radius: 9px 9px 5px 5px;
+  /* XP Luna window frame: a blue border round the sides and bottom. */
+  border: 1px solid;
+  border-color: #0831d9 #001ea0 #001ea0 #0831d9;
+  border-radius: 8px 8px 0 0;
   background:
     repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.16) 0 1px, rgba(0, 0, 0, 0.025) 1px 2px, transparent 2px 4px),
     linear-gradient(180deg, var(--chrome-1) 0%, var(--chrome-2) 45%, var(--chrome-3) 100%);
   box-shadow:
-    inset 0 0 0 1px var(--chrome-hi),
-    inset 0 0 0 3px #c9ccd3,
+    inset 1px 1px #166aee,
+    inset -1px -1px #003bda,
+    inset 0 0 0 3px #0855dd,
+    inset 0 0 0 4px #0a3fbf,
+    inset 0 0 0 5px rgba(255, 255, 255, 0.7),
     0 18px 50px rgba(0, 0, 30, 0.45),
     0 2px 6px rgba(0, 0, 0, 0.35);
 }
@@ -176,40 +181,48 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .titlebar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  height: 36px;
-  padding: 0 6px 0 10px;
-  border-radius: 8px 8px 0 0;
-  background: linear-gradient(180deg, #3f86f2 0%, #1d61dc 8%, #1553d3 30%, #0f49c9 55%, #1252d2 85%, #0b3fb6 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 -1px 0 rgba(0, 0, 0, 0.3);
+  gap: 6px;
+  height: 31px;
+  padding: 0 5px 0 7px;
+  border-radius: 7px 7px 0 0;
+  /* XP Luna active title bar */
+  background: linear-gradient(180deg, #0997ff 0%, #0053ee 8%, #0050ee 40%, #0066ff 88%, #0066ff 93%, #005bff 95%,
+    #003dd7 96%, #003dd7 100%);
   color: #fff;
-  font: bold 16px/1 var(--font-title);
-  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.6);
+  font: bold 15px/1 var(--font-title);
+  letter-spacing: 0.01em;
+  text-shadow: 1px 1px #0f1089;
 }
-.titlebar-icon { width: 22px; height: 22px; }
+.titlebar-icon { width: 18px; height: 18px; }
 .titlebar-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.titlebar-buttons { display: flex; gap: 3px; }
+.titlebar-buttons { display: flex; gap: 2px; }
 .tb {
   position: relative;
-  width: 26px;
-  height: 24px;
+  width: 23px;
+  height: 23px;
   border: 1px solid #fff;
   border-radius: 3px;
-  background: linear-gradient(180deg, #fbfbfc, #d3d6dc 55%, #c3c7ce);
-  box-shadow: 0 0 0 1px #2b4a9c, inset 0 -1px 1px rgba(0, 0, 0, 0.15);
+  background: radial-gradient(circle at 90% 90%, #0054e9 0%, #2263d5 55%, #4479e4 70%, #a3bbec 90%, #fff 100%);
+  box-shadow: inset 0 0 1px rgba(0, 0, 0, 0.3);
 }
-.tb::after { content: ""; position: absolute; }
-.tb-min::after { left: 7px; right: 7px; bottom: 6px; height: 3px; background: #111; }
-.tb-max::after { inset: 5px 6px; border: 2px solid #111; border-top-width: 3px; }
-.tb-close::after {
-  content: "×";
-  inset: 0;
-  display: grid;
-  place-items: center;
-  color: #111;
-  font: bold 20px/1 Verdana, sans-serif;
-  text-shadow: none;
+.tb::before, .tb::after { content: ""; position: absolute; background: #fff; }
+.tb-min::after { left: 5px; bottom: 5px; width: 7px; height: 3px; }
+.tb-max::before { display: none; }
+.tb-max::after { inset: 4px; border: 1px solid #fff; border-top-width: 3px; background: none; }
+.tb-min::before { display: none; }
+.tb-close {
+  background: radial-gradient(circle at 90% 90%, #cc4600 0%, #dc6527 55%, #cd7546 70%, #ffccb2 90%, #fff 100%);
 }
+.tb-close::before, .tb-close::after {
+  top: 4px;
+  left: 50%;
+  width: 2px;
+  height: 13px;
+  margin-left: -1px;
+  border-radius: 1px;
+}
+.tb-close::before { transform: rotate(45deg); }
+.tb-close::after { transform: rotate(-45deg); }
 
 /* Logo capsule */
 .logobar {
@@ -968,8 +981,9 @@ details.more[open] > summary { margin-bottom: 12px; }
   .desktop { padding: 8px 6px 16px; }
   .page { padding: 0 8px 12px; }
   .win-head { margin: 0 -8px 12px; }
-  .titlebar { height: 32px; font-size: 14px; }
-  .tb { width: 22px; height: 21px; }
+  .titlebar { height: 29px; font-size: 14px; }
+  .tb { width: 21px; height: 21px; }
+  .tb-close::before, .tb-close::after { top: 3px; height: 13px; }
   .logobar { flex-wrap: wrap; gap: 6px 12px; margin: 10px 10px 0; padding: 10px 14px; border-radius: 16px; }
   .logo-icon { width: 30px; height: 30px; }
   .logo-text { font-size: 1.9rem; }
