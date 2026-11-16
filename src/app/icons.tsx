@@ -22,7 +22,8 @@ export type XpIconName =
   | "refresh"
   | "save"
   | "scheduled-tasks"
-  | "success";
+  | "success"
+  | "volume";
 
 export function XpIcon({ name, className }: { name: XpIconName; className?: string }) {
   return (

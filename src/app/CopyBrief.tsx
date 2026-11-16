@@ -17,7 +17,7 @@ export function CopyBrief() {
     setTimeout(() => setLabel("Copy for AI"), 2000);
   }
   return (
-    <button type="button" className="wa-btn" onClick={copy}>
+    <button type="button" className="tool" onClick={copy}>
       <XpIcon name="copy" />
       <span aria-live="polite">{label}</span>
     </button>

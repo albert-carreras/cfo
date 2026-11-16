@@ -5,12 +5,12 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { XpIcon, type XpIconName } from "./icons";
 
-type Entry = { href: string; label: string; icon: XpIconName; sub?: string };
+type Entry = { href: string; label: string; icon: XpIconName };
 
 const LEFT: Entry[] = [
-  { href: "/", label: "Overview", icon: "my-computer", sub: "Everything you own" },
-  { href: "/change", label: "Something happened", icon: "play", sub: "Sold, bought, moved money" },
-  { href: "/change?do=values", label: "Update balances", icon: "refresh", sub: "What your apps show today" },
+  { href: "/", label: "Overview", icon: "my-computer" },
+  { href: "/change", label: "Something happened", icon: "play" },
+  { href: "/change?do=values", label: "Update balances", icon: "refresh" },
 ];
 const RIGHT: Entry[] = [
   { href: "/tax", label: "Tax", icon: "calculator" },
@@ -60,35 +60,22 @@ export function Taskbar() {
       <details className="start" ref={menu}>
         <summary className="start-btn">
           <span className="start-logo" aria-hidden="true" />
-          start
+          Start
         </summary>
         <nav className="start-menu" aria-label="All pages">
-          <div className="start-head">
-            <XpIcon name="briefcase" className="start-avatar" />
-            CFO
+          <div className="start-banner" aria-hidden="true">
+            <span>
+              <b>CFO</b> {new Date().getFullYear()}
+            </span>
           </div>
-          <div className="start-cols">
-            <div className="start-left">
-              {LEFT.map((item) => (
-                <Link key={item.href} href={item.href} onClick={close}>
-                  <XpIcon name={item.icon} />
-                  <span>
-                    <strong>{item.label}</strong>
-                    <small>{item.sub}</small>
-                  </span>
-                </Link>
-              ))}
-            </div>
-            <div className="start-right">
-              {RIGHT.map((item) => (
-                <Link key={item.href} href={item.href} onClick={close}>
-                  <XpIcon name={item.icon} />
-                  {item.label}
-                </Link>
-              ))}
-            </div>
-          </div>
-          <div className="start-foot">
+          <div className="start-items">
+            {[...LEFT, ...RIGHT].map((item) => (
+              <Link key={item.href} href={item.href} onClick={close}>
+                <XpIcon name={item.icon} />
+                {item.label}
+              </Link>
+            ))}
+            <hr />
             <a href="/api/export" download onClick={close}>
               <XpIcon name="notepad" />
               Download brief (.md)
@@ -98,9 +85,12 @@ export function Taskbar() {
       </details>
       <span className="task">
         <XpIcon name="briefcase" />
-        <span className="task-text">{pageLabel(pathname)}</span>
+        <span className="task-text">CFO - {pageLabel(pathname)}</span>
       </span>
-      <span className="tray">{time}</span>
+      <span className="tray">
+        <XpIcon name="volume" />
+        {time}
+      </span>
     </div>
   );
 }

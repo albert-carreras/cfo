@@ -33,97 +33,55 @@ const NAV = [
 
 type ActiveNav = "/" | "/change" | "/activity";
 
-export type HeaderStat = { value: string; label: string; href?: string; tone?: "warn" | "bad" };
-
-const TAGLINE = "CFO *** Every number verified or calculated *** No advice, no guesses ***";
-
-// The player window every page sits in: title bar, LCD with a scrolling line
-// and small readouts, and the button row that doubles as the main navigation.
-export function Header({
-  active,
-  marquee = TAGLINE,
-  stats,
-}: {
-  active?: ActiveNav;
-  marquee?: string;
-  stats?: HeaderStat[];
-}) {
+// The window chrome every page sits in: title bar, logo strip and the button
+// row that doubles as the main navigation.
+export function Header({ active }: { active?: ActiveNav }) {
   const title = NAV.find((item) => item.href === active)?.label;
+  const year = new Date().getFullYear();
   return (
-    <header className="wa-main">
-      <div className="wa-title">
-        <XpIcon name="briefcase" className="wa-title-icon" />
-        <span className="wa-ribs" aria-hidden="true" />
-        <span className="wa-title-text">{title ? `CFO - ${title}` : "CFO"}</span>
-        <span className="wa-ribs" aria-hidden="true" />
-        <span className="wa-title-buttons" aria-hidden="true">
-          <span className="wa-tb wa-tb-min" />
-          <span className="wa-tb wa-tb-shade" />
-          <span className="wa-tb wa-tb-close" />
+    <header className="win-head">
+      <div className="titlebar">
+        <XpIcon name="briefcase" className="titlebar-icon" />
+        <span className="titlebar-text">{title ? `CFO ${year} - ${title}` : `CFO ${year}`}</span>
+        <span className="titlebar-buttons" aria-hidden="true">
+          <span className="tb tb-min" />
+          <span className="tb tb-max" />
+          <span className="tb tb-close" />
         </span>
       </div>
-      <div className="wa-deck">
-        <div className="wa-lcd">
-          <div className="wa-lcd-top">
-            <span className="wa-play" aria-hidden="true" />
-            <span>CFO</span>
-          </div>
-          {/* Decorative visualizer. Not data. */}
-          <div className="wa-vis" aria-hidden="true">
-            {Array.from({ length: 16 }, (_, i) => (
-              <span key={i} style={{ "--i": i } as CSSProperties} />
-            ))}
-          </div>
-        </div>
-        <div className="wa-info">
-          <div className="wa-marquee" style={{ "--chars": marquee.length } as CSSProperties}>
-            <div className="wa-marquee-track">
-              <span>{marquee}</span>
-              <span aria-hidden="true">{marquee}</span>
-            </div>
-          </div>
-          {stats && stats.length > 0 && (
-            <div className="wa-stats">
-              {stats.map((stat) => {
-                const body = (
-                  <>
-                    <span className={`wa-stat-value${stat.tone ? ` ${stat.tone}` : ""}`}>{stat.value}</span>
-                    <span className="wa-stat-label">{stat.label}</span>
-                  </>
-                );
-                return stat.href ? (
-                  <Link key={stat.label} href={stat.href} className="wa-stat">
-                    {body}
-                  </Link>
-                ) : (
-                  <span key={stat.label} className="wa-stat">
-                    {body}
-                  </span>
-                );
-              })}
-            </div>
-          )}
-        </div>
+      <div className="logobar">
+        <Link href="/" className="logo">
+          <XpIcon name="briefcase" className="logo-icon" />
+          <span className="logo-text">CFO</span>
+          <span className="logo-year">{year}</span>
+        </Link>
+        <span className="logobar-tag">Every number verified or calculated.</span>
+        {/* Decorative equalizer. Not data. */}
+        <span className="eq" aria-hidden="true">
+          {Array.from({ length: 14 }, (_, i) => (
+            <span key={i} style={{ "--i": i } as CSSProperties} />
+          ))}
+        </span>
       </div>
-      <nav className="wa-transport" aria-label="Main">
-        <div className="wa-buttons">
+      <nav className="toolbar" aria-label="Main">
+        <div className="toolbar-main">
           {NAV.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className="wa-btn"
+              className="tool"
               aria-current={active === item.href ? "page" : undefined}
             >
               <XpIcon name={item.icon} />
-              <span>{item.label}</span>
+              {item.label}
             </Link>
           ))}
         </div>
-        <div className="wa-buttons wa-tools">
+        <div className="toolbar-tools">
           <CopyBrief />
-          <a href="/api/export" download className="wa-btn">
+          <a href="/api/export" download className="tool">
             <XpIcon name="save" />
-            <span>.md</span>
+            .md
           </a>
         </div>
       </nav>

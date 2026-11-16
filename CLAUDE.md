@@ -52,12 +52,13 @@ If code contradicts a doc, update the doc in the same change.
   `/api/cron/monthly` — the monthly push.
 
 The UI is phone-first and wears a retro skin from `src/app/globals.css`, in one theme only: a
-Windows XP desktop (wallpaper, desktop shortcuts, Luna taskbar whose Start menu lists every page)
-and, on it, one window per page styled like a classic media-player skin (ribbed title bars, grey
-transport buttons as the main nav, black LCD panels with green text). Icons are real Windows XP
-artwork in `public/xp/` (Microsoft's, not under this repo's license; see its NOTICE). The
-visualizer in the window's LCD is decoration; the summary's equalizer sliders and the spending
-meter are only shapes of figures shown next to them as text.
+Windows XP desktop (wallpaper, desktop shortcuts, classic grey taskbar whose Start menu lists every
+page) and, on it, one media-player style window per page: blue title bar, brushed silver metal, a
+glossy logo capsule, big silver pill buttons as the main nav, a black LCD status strip, and dark
+rounded panels with glowing status pills, purple selection and LED meters. Icons are real Windows
+XP artwork in `public/xp/` (Microsoft's, not under this repo's license; see its NOTICE). The
+equalizer in the logo capsule is decoration; the summary's equalizer bars and the spending meter
+are only shapes of figures shown next to them as text.
 
 ## Stack and commands
 
