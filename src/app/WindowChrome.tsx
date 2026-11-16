@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState, type CSSProperties, type MouseEvent } from "react";
 import { CopyBrief } from "./CopyBrief";
+import { HitCounter } from "./HitCounter";
 import { XpIcon, type XpIconName } from "./icons";
 import { mainHistory, setBusy, useMainHistory } from "./nav";
 import { describe, parentOf } from "./routes";
@@ -37,15 +38,15 @@ function useRememberedUrl(path: string) {
 // button row that is the main navigation, and an Explorer-style address bar.
 // When the address is this window's own page, its query is right here, so
 // the lit button and the address are right on the first paint.
-export function WindowChrome({ path }: { path: string }) {
+export function WindowChrome({ path, visits }: { path: string; visits: number | null }) {
   const remembered = useRememberedUrl(path);
   const pathname = usePathname();
   const search = useSearchParams().toString();
   const url = pathname === path ? (search ? `${path}?${search}` : path) : remembered;
-  return <Chrome url={url} />;
+  return <Chrome url={url} visits={visits} />;
 }
 
-function Chrome({ url }: { url: string }) {
+function Chrome({ url, visits }: { url: string; visits: number | null }) {
   const year = new Date().getFullYear();
   // Like a tab, a pressed button lights at once; the page follows.
   const [pending, setPending] = useState<{ href: string; from: string } | null>(null);
@@ -63,7 +64,13 @@ function Chrome({ url }: { url: string }) {
           <span className="logo-text">CFO</span>
           <span className="logo-year">{year}</span>
         </Link>
-        <span className="logobar-tag">Your money. 100% Y2K compliant.</span>
+        <span className="logobar-tag">
+          <span className="tag-line">You&apos;ve got money!</span>
+          <span className="tag-count">
+            <HitCounter initial={visits} />
+            <span className="tag-small">visits already</span>
+          </span>
+        </span>
         {/* Decorative equalizer. Not data. */}
         <span className="eq" aria-hidden="true">
           {Array.from({ length: 14 }, (_, i) => (

@@ -37,8 +37,8 @@ If code contradicts a doc, update the doc in the same change.
    deducted from net worth until the year is marked paid. Property gains are not estimated.
 6. Push payloads never carry € amounts (public ntfy topics are guessable).
 7. Keep retired tables (`health_checks`, `decisions`, `reviews`, `pictures`, `checks`,
-   `monthly_spend`, `settings`) as archival data unless a separately approved migration removes
-   them.
+   `monthly_spend`) as archival data unless a separately approved migration removes them.
+   `settings` is live: small app flags and counters (the monthly digest, the hit counter).
 
 ## Product surface
 
@@ -68,6 +68,10 @@ window. Opening a page asks the second window to show itself (`requestSide`), so
 when it already holds that page. Windows open and minimize with the classic grey zoom outline.
 Desktop icons select on one click and open on a double click. Icons and cursors are real Windows XP artwork in
 `public/xp/` (Microsoft's, not under this repo's license; see its NOTICE).
+
+The logo capsule reads "You've got money!" with a hit counter: a real count of how many times
+the app has been opened (full page loads, not moving around inside it), kept as the `visits` row
+in `settings` (`src/server/visits.ts`, bumped once per load via `POST /api/visit`).
 
 Decoration, never data: the equalizer in the logo capsule and the Transfers window
 (`Downloader.tsx`), which pretends to download files at dial-up speeds and shows its rate in the

@@ -6,6 +6,7 @@ import { Downloader } from "./Downloader";
 import { MainWindow } from "./MainWindow";
 import { NavWatcher } from "./NavWatcher";
 import { Taskbar } from "./Taskbar";
+import { readVisits } from "@/server/visits";
 
 // Every page reads the database; nothing is prerendered. (This also lets the
 // window chrome read the address's query without a Suspense placeholder.)
@@ -28,14 +29,15 @@ export const metadata: Metadata = {
 // The desktop: shortcuts on the wallpaper, the main window, a second window
 // when a page opens in one of its own (the `win` slot), the transfers window
 // and the taskbar.
-export default function RootLayout({ children, win }: { children: ReactNode; win: ReactNode }) {
+export default async function RootLayout({ children, win }: { children: ReactNode; win: ReactNode }) {
+  const visits = await readVisits();
   return (
     <html lang="en">
       <body>
         <div className="desktop">
           <DesktopIcons />
           <div className="desk-main">
-            <MainWindow>{children}</MainWindow>
+            <MainWindow visits={visits}>{children}</MainWindow>
             {win}
           </div>
         </div>

@@ -40,7 +40,8 @@ apply, so confirming a balance and then logging something the same day never dou
 - `snapshots` — one computed snapshot per day (jsonb).
 - `data_updates` — the activity log: `kind`, `title`, readable `changes` lines and a note. Rows
   from before the log existed hold raw observations; the activity page resolves their names.
-- `settings` — small app flags, e.g. `digest:YYYY-MM` once the monthly push went out.
+- `settings` — small app flags and counters: `digest:YYYY-MM` once the monthly push went out,
+  `visits` for the hit counter (bumped once per page load).
 
 ## Retired, kept as archive
 
